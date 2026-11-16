@@ -1,0 +1,24 @@
+{
+  "name": "waretrack-3d",
+  "version": "1.0.0",
+  "description": "3D Warehouse Management System: interactive Three.js warehouse backed by a real WMS API and database",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning backend/src/server.js",
+    "dev": "node --watch --disable-warning=ExperimentalWarning backend/src/server.js",
+    "setup": "node --disable-warning=ExperimentalWarning database/migrate.js && node --disable-warning=ExperimentalWarning database/seed.js",
+    "db:migrate": "node --disable-warning=ExperimentalWarning database/migrate.js",
+    "db:seed": "node --disable-warning=ExperimentalWarning database/seed.js",
+    "db:reset": "node --disable-warning=ExperimentalWarning database/seed.js --reset",
+    "vendor:three": "node scripts/vendor-three.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 tests/*.test.js",
+    "prestart": "node scripts/check-node.mjs",
+    "predev": "node scripts/check-node.mjs",
+    "docs:generate": "node --disable-warning=ExperimentalWarning scripts/gen-docs.mjs",
+    "test:e2e": "node tests/e2e/browser-smoke.mjs"
+  }
+}
