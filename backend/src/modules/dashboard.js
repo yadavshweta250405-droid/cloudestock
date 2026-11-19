@@ -82,6 +82,129 @@ export function createService(ctx) {
     /** Compact snapshot written by the sync service (the "data.json" of the reference guide). Totals only, no personal data. */
     snapshot() { return { kpis: svc.kpis(), sections: svc.charts().sections, orders: svc.charts().ordersByStatus }; },
 
+    /** Sample Superstore dataset analytics. */
+    superstoreAnalytics() {
+      const totals = one(`
+        SELECT
+          COUNT(DISTINCT order_id) total_orders,
+          ROUND(SUM(sales), 2)    total_sales,
+          ROUND(SUM(profit), 2)   total_profit,
+          ROUND(SUM(quantity))    total_units,
+          COUNT(DISTINCT customer_id) total_customers,
+          ROUND(SUM(profit) * 100.0 / NULLIF(SUM(sales), 0), 2) profit_margin,
+          SUM(returned)           total_returns
+        FROM superstore_sales
+      `);
+
+      const byCategory = db.all(`
+        SELECT category, sub_category,
+               ROUND(SUM(sales), 2) sales,
+               ROUND(SUM(profit), 2) profit,
+               SUM(quantity) units,
+               COUNT(DISTINCT order_id) orders
+        FROM superstore_sales
+        GROUP BY category, sub_category
+        ORDER BY sales DESC
+      `);
+
+      const byRegion = db.all(`
+        SELECT s.region,
+               COALESCE(r.manager, '') manager,
+               ROUND(SUM(s.sales), 2) sales,
+               ROUND(SUM(s.profit), 2) profit,
+               COUNT(DISTINCT s.order_id) orders
+        FROM superstore_sales s
+        LEFT JOIN superstore_regions r ON r.name = s.region
+        GROUP BY s.region
+        ORDER BY sales DESC
+      `);
+
+      const bySegment = db.all(`
+        SELECT segment,
+               ROUND(SUM(sales), 2) sales,
+               ROUND(SUM(profit), 2) profit,
+               COUNT(DISTINCT customer_id) customers,
+               COUNT(DISTINCT order_id) orders
+        FROM superstore_sales
+        GROUP BY segment
+        ORDER BY sales DESC
+      `);
+
+      const topCustomers = db.all(`
+        SELECT customer_id, customer_name, segment, region,
+               ROUND(SUM(sales), 2) sales,
+               ROUND(SUM(profit), 2) profit,
+               COUNT(DISTINCT order_id) orders
+        FROM superstore_sales
+        GROUP BY customer_id
+        ORDER BY sales DESC
+        LIMIT 10
+      `);
+
+      const topProducts = db.all(`
+        SELECT product_id, product_name, category, sub_category,
+               ROUND(SUM(sales), 2) sales,
+               ROUND(SUM(profit), 2) profit,
+               SUM(quantity) units
+        FROM superstore_sales
+        GROUP BY product_id
+        ORDER BY sales DESC
+        LIMIT 10
+      `);
+
+      const salesByYear = db.all(`
+        SELECT substr(order_date, 1, 4) year,
+               ROUND(SUM(sales), 2) sales,
+               ROUND(SUM(profit), 2) profit,
+               COUNT(DISTINCT order_id) orders
+        FROM superstore_sales
+        GROUP BY year
+        ORDER BY year ASC
+      `);
+
+      const salesByMonth = db.all(`
+        SELECT substr(order_date, 1, 7) month,
+               ROUND(SUM(sales), 2) sales,
+               ROUND(SUM(profit), 2) profit,
+               COUNT(DISTINCT order_id) orders
+        FROM superstore_sales
+        GROUP BY month
+        ORDER BY month ASC
+      `);
+
+      const byShipMode = db.all(`
+        SELECT ship_mode,
+               COUNT(DISTINCT order_id) orders,
+               ROUND(SUM(sales), 2) sales
+        FROM superstore_sales
+        GROUP BY ship_mode
+        ORDER BY orders DESC
+      `);
+
+      const returnsByCategory = db.all(`
+        SELECT category,
+               SUM(returned) returned_lines,
+               COUNT(*) total_lines,
+               ROUND(SUM(returned) * 100.0 / COUNT(*), 2) return_rate_pct
+        FROM superstore_sales
+        GROUP BY category
+        ORDER BY return_rate_pct DESC
+      `);
+
+      return {
+        totals,
+        byCategory,
+        byRegion,
+        bySegment,
+        topCustomers,
+        topProducts,
+        salesByYear,
+        salesByMonth,
+        byShipMode,
+        returnsByCategory,
+      };
+    },
+
     /** Everything the 3D world needs in one call. */
     scene() {
       const struct = ctx.svc.warehouse.structure();
@@ -126,4 +249,5 @@ export function createService(ctx) {
 export function registerRoutes(router, ctx) {
   router.get('/api/dashboard', { perm: 'dashboard:read' }, (r) => ctx.svc.dashboard.summary(r.user));
   router.get('/api/scene', { perm: 'scene:read' }, () => ctx.svc.dashboard.scene());
+  router.get('/api/analytics/superstore', { perm: 'dashboard:read' }, () => ctx.svc.dashboard.superstoreAnalytics());
 }

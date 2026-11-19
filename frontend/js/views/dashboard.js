@@ -51,7 +51,128 @@ export async function render(root, app) {
         h('div', { class: 'card' }, h('h3', null, 'Low stock alerts'), d.lowStock.length ? d.lowStock.map((p) => h('div', { class: 'list-row' }, h('div', null, h('b', null, p.name), h('div', { class: 'muted mono' }, p.sku)), h('div', { style: { textAlign: 'right' } }, h('b', null, `${fmt.n(p.onHand)} / ${p.reorderLevel}`), h('div', null, badge(p.status))))) : h('div', { class: 'muted' }, 'All products are above their reorder level.')),
         h('div', { class: 'card' }, h('h3', null, 'Recent activity'), d.recentActivity.map((a) => h('div', { class: 'list-row' }, h('span', null, a.message), h('span', { class: 'muted', style: { whiteSpace: 'nowrap', fontSize: '12px' } }, fmt.ago(a.createdAt)))))));
   }
-  mount(root, pageHead('Analytics', 'Every number is calculated from the database in real time', btn('Refresh', () => load(body, paint), { ic: 'refresh' })), body);
-  await load(body, paint);
-  return { refresh: () => paint().then((n) => mount(body, n)).catch(() => {}) };
+  const ssBody = h('div');
+
+  async function paintSuperstore() {
+    let ss;
+    try { ss = await api.get('/analytics/superstore'); } catch (e) { return h('div', { class: 'card muted' }, 'Superstore analytics not available.'); }
+    const t = ss.totals;
+
+    const catColors = { Furniture: '#d97706', 'Office Supplies': '#2563eb', Technology: '#16a34a' };
+    const regionColors = { West: '#8b5cf6', East: '#0d9488', Central: '#f59e0b', South: '#ef4444' };
+
+    return h('div', null,
+      // ---- KPI bar ----
+      h('div', { class: 'kpis' },
+        kpi('dollar', `$${fmt.n(t.total_sales)}`, 'Total Sales (Superstore)'),
+        kpi('percent', `$${fmt.n(t.total_profit)}`, 'Total Profit'),
+        kpi('percent', `${t.profit_margin}%`, 'Profit Margin', t.profit_margin > 15 ? 'good' : 'warn'),
+        kpi('clipboard', fmt.n(t.total_orders), 'Distinct Orders'),
+        kpi('box', fmt.n(t.total_units), 'Units Sold'),
+        kpi('users', fmt.n(t.total_customers), 'Unique Customers'),
+        kpi('alert', fmt.n(t.total_returns), 'Returned Lines', t.total_returns ? 'warn' : 'good')),
+
+      h('div', { class: 'grid g2' },
+        // Sales by Category (top-level)
+        h('div', { class: 'card' },
+          h('h3', null, 'Sales by Category'),
+          donut({
+            items: ['Furniture', 'Office Supplies', 'Technology'].map((cat) => {
+              const rows = ss.byCategory.filter(r => r.category === cat);
+              const total = rows.reduce((s, r) => s + r.sales, 0);
+              return { label: cat, value: Math.round(total), color: catColors[cat] || '#94a3b8' };
+            }),
+            center: { value: `$${fmt.n(t.total_sales)}`, label: 'sales' }
+          })),
+
+        // Sales by Region
+        h('div', { class: 'card' },
+          h('h3', null, 'Sales by Region'),
+          donut({
+            items: ss.byRegion.map(r => ({ label: `${r.region} (${r.manager || '-'})`, value: Math.round(r.sales), color: regionColors[r.region] || '#94a3b8' })),
+            center: { value: fmt.n(t.total_orders), label: 'orders' }
+          })),
+
+        // Sub-category breakdown
+        h('div', { class: 'card' },
+          h('h3', null, 'Sales by Sub-Category', h('small', null, 'top 12')),
+          hbars({
+            items: ss.byCategory.slice(0, 12).map(r => ({
+              label: `${r.sub_category} (${r.category})`,
+              value: r.sales,
+              kind: r.profit < 0 ? 'bad' : ''
+            }))
+          })),
+
+        // Sales by Customer Segment
+        h('div', { class: 'card' },
+          h('h3', null, 'Sales by Segment'),
+          groupedBars({
+            labels: ss.bySegment.map(s => s.segment),
+            series: [
+              { name: 'Sales ($)', color: '#2563eb', values: ss.bySegment.map(s => Math.round(s.sales)) },
+              { name: 'Profit ($)', color: '#16a34a', values: ss.bySegment.map(s => Math.round(s.profit)) }
+            ]
+          })),
+
+        // Annual trend
+        h('div', { class: 'card' },
+          h('h3', null, 'Annual Sales Trend'),
+          lineChart({
+            labels: ss.salesByYear.map(r => r.year),
+            series: [
+              { name: 'Sales ($)', color: '#2563eb', values: ss.salesByYear.map(r => Math.round(r.sales)) },
+              { name: 'Profit ($)', color: '#16a34a', values: ss.salesByYear.map(r => Math.round(r.profit)) }
+            ]
+          })),
+
+        // Ship mode breakdown
+        h('div', { class: 'card' },
+          h('h3', null, 'Orders by Ship Mode'),
+          hbars({ items: ss.byShipMode.map(r => ({ label: r.ship_mode, value: r.orders })) })),
+
+        // Top 10 customers
+        h('div', { class: 'card' },
+          h('h3', null, 'Top 10 Customers by Sales'),
+          ss.topCustomers.map(c =>
+            h('div', { class: 'list-row' },
+              h('div', null, h('b', null, c.customer_name), h('div', { class: 'muted' }, `${c.segment} - ${c.region}`)),
+              h('div', { style: { textAlign: 'right' } },
+                h('b', null, `$${fmt.n(c.sales)}`),
+                h('div', { class: 'muted' }, `${fmt.n(c.orders)} orders`))))),
+
+        // Top 10 products
+        h('div', { class: 'card' },
+          h('h3', null, 'Top 10 Products by Sales'),
+          ss.topProducts.map(p =>
+            h('div', { class: 'list-row' },
+              h('div', null, h('b', null, p.product_name.length > 40 ? p.product_name.slice(0, 40) + '...' : p.product_name), h('div', { class: 'muted' }, `${p.category} - ${p.sub_category}`)),
+              h('div', { style: { textAlign: 'right' } },
+                h('b', null, `$${fmt.n(p.sales)}`),
+                h('div', { class: 'muted' }, `${fmt.n(p.units)} units`))))),
+
+        // Returns by Category
+        h('div', { class: 'card' },
+          h('h3', null, 'Return Rate by Category'),
+          hbars({
+            items: ss.returnsByCategory.map(r => ({
+              label: r.category,
+              value: parseFloat(r.return_rate_pct),
+              kind: r.return_rate_pct > 10 ? 'warn' : ''
+            })),
+            format: (v) => `${v}%`
+          }))
+      ));
+  }
+
+  mount(root,
+    pageHead('Analytics', 'Every number is calculated from the database in real time', btn('Refresh', () => { load(body, paint); load(ssBody, paintSuperstore); }, { ic: 'refresh' })),
+    body,
+    h('div', { style: { margin: '28px 0 8px' } },
+      h('h2', { style: { borderBottom: '2px solid #e2e8f0', paddingBottom: '10px', color: '#1e293b' } }, 'Sample Superstore Dataset Analytics',
+        h('small', { style: { fontWeight: 400, color: '#64748b', marginLeft: '10px' } }, '9,994 orders imported from Sample-Superstore.xlsx'))),
+    ssBody);
+
+  await Promise.all([load(body, paint), load(ssBody, paintSuperstore)]);
+  return { refresh: () => { paint().then((n) => mount(body, n)).catch(() => {}); paintSuperstore().then((n) => mount(ssBody, n)).catch(() => {}); } };
 }
