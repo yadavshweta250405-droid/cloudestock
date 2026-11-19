@@ -3,12 +3,14 @@
 export const DOCK_X = [-31, -21, -11, -1];     // centre of each loading door on the hall's front wall
 export const HALL = { x0: -38, x1: 2, z0: -20, z1: 10, wall: 6, thick: 0.5 };
 export const OFFICE = { x0: 14, x1: 30, z0: -2, z1: 10, h: 7.5, doorX: 22 };
+export const RIVERSIDE = { x0: 36, x1: 76, z0: -20, z1: 10, wall: 6, thick: 0.5 };
+export const RIVERSIDE_DOCKS_X = [48, 58, 68];
 export const WALK_Z = 11.7;                    // pedestrian walkway in front of the docks
 export const TRUCK_DOCK_Z = 17.75;             // centre of a truck backed up to a dock
 export const LANES = { yard: 28.5, out: 34.5, in: 39.5, roadCenter: 37, roadWidth: 13 };
 export const RACK = { len: 4.4, depth: 1.5, h: 4.2, pitch: 4.4 };
 export const PALLET = { len: 1.8, depth: 1.1, maxUnits: 200, maxBoxes: 8 };
-export const PARKING = { x0: 14, step: 5.5, z: 22.5, slots: 8, waitX: 58 };
+export const PARKING = { x0: 4.5, step: 4.0, z: 23.0, slots: 8, waitX: 40 };
 export const ROAD_END = { west: -80, east: 80 };
 
 const COL0 = { indoor0: -35, indoor1: -14.2, outdoor: 38.2 };

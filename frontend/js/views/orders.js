@@ -43,6 +43,21 @@ export async function render(root, app) {
       const flowIdx = FLOW.indexOf(o.status);
       const steps = h('div', { class: 'steps', style: { margin: '6px 0 16px' } }, FLOW.map((s, i) => h('div', { class: `step ${o.status === 'Cancelled' ? '' : i < flowIdx ? 'done' : i === flowIdx ? 'cur' : ''}` }, h('i', null, i < flowIdx ? icon('check') : i + 1), s)));
       const act = [];
+      if (['Processing', 'Packed', 'Ready for Dispatch', 'Pending'].includes(o.status)) {
+        act.push(btn('3D Pick Path', async () => {
+          try {
+            const pickData = await api.get(`/orders/${id}/pick-path`);
+            m.close();
+            location.hash = '#/world';
+            setTimeout(() => {
+              app.world?.showOrderPickPath?.(pickData);
+              toast('Pick Route Generated', `${pickData.itemCount} items across ${pickData.totalStops} racks in optimized sequence`, 'info');
+            }, 150);
+          } catch (err) {
+            toastError(err);
+          }
+        }, { kind: 'primary', ic: 'compass' }));
+      }
       if (write) for (const next of o.nextStatuses) {
         if (next === 'Dispatched') continue;
         if (next === 'Cancelled') act.push(btn('Cancel order', async () => { if (await confirmDialog({ title: `Cancel ${o.number}?`, message: 'Reserved stock will be released.', confirmLabel: 'Cancel order', danger: true })) { await attempt(() => api.post(`/orders/${id}/status`, { status: next }), 'Order cancelled'); paint(); refresh(); } }, { kind: 'danger' }));

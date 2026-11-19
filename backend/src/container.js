@@ -18,10 +18,14 @@ import * as employeesModule from './modules/employees.js';
 import * as warehouseModule from './modules/warehouse.js';
 import * as dashboardModule from './modules/dashboard.js';
 import * as miscModule from './modules/misc.js';
+import * as purchasesModule from './modules/purchases.js';
+import * as returnsModule from './modules/returns.js';
+import * as currenciesModule from './modules/currencies.js';
 
 const MODULES = {
   auth: authModule, inventory: inventoryModule, orders: ordersModule, deliveries: deliveriesModule, receiving: receivingModule,
   tasks: tasksModule, employees: employeesModule, warehouse: warehouseModule, dashboard: dashboardModule, misc: miscModule,
+  purchases: purchasesModule, returns: returnsModule, currencies: currenciesModule,
 };
 
 const silent = process.env.WARETRACK_QUIET === '1';

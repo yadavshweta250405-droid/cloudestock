@@ -69,8 +69,8 @@ function tipFor(s, ref) {
     case 'shipment': { const x = d.inboundShipments.find((y) => y.id === ref.id); return x && `${x.ref} · inbound`; }
     case 'worker': { const w = d.employees.find((x) => x.id === ref.id); return w && `${w.name} · ${fmt.label(w.status)}`; }
     case 'dock': { const k = d.docks.find((x) => x.id === ref.id); return k && `Dock ${k.number} · ${k.status}`; }
-    case 'warehouse': return d.warehouse?.name || 'Warehouse';
-    case 'office': return 'Management office';
+    case 'warehouse': return ref.id === 2 ? 'Riverside Hub (WH-02) · Cold Storage & Industrial' : (d.warehouse?.name ? `${d.warehouse.name} (WH-01)` : 'WareTrack Hub (WH-01)');
+    case 'office': return 'Management Office · Central Multi-Warehouse Command';
     case 'section': { const x = d.sections.find((y) => y.id === ref.id); return x && `Section ${x.code} · ${x.name}`; }
     default: return null;
   }
@@ -91,8 +91,32 @@ function cardFor(s, ref, d) {
   const app = s.app; const dock = (id) => d.docks.find((x) => x.id === id);
   switch (ref.type) {
     case 'warehouse': {
+      if (ref.id === 2) {
+        const wh2 = d.warehouse2 || {
+          code: 'WH-02', name: 'Riverside Hub', city: 'Chicago Cold Harbour',
+          capacity: 4800, occupied: 2840, available: 1960, utilization: 0.59,
+          speciality: 'Pharmaceuticals, Heavy Industrial, Cold Chain',
+          tempZones: '-20°C Deep Freeze, 4°C Chilled, 21°C Ambient',
+          docks: 'Docks 5, 6, 7 (Refrigerated Air-Lock)'
+        };
+        return {
+          icon: 'building', title: 'Riverside Hub', sub: `${wh2.code} · ${wh2.city}`,
+          rows: [
+            ['Facility Type', 'Cold Chain & Heavy Industrial'],
+            ['Speciality', wh2.speciality],
+            ['Temperature Control', wh2.tempZones],
+            ['Connected Node', 'WH-02 (Central Hub Linked)'],
+            ['Storage Capacity', `${fmt.n(wh2.capacity)} units`],
+            ['Current Stock', `${fmt.n(wh2.occupied)} units`],
+            ['Docks', wh2.docks],
+            ['Status', badge('active')]
+          ],
+          extra: h('div', { style: { marginTop: '8px' } }, bar(wh2.utilization)),
+          actions: [act('View Riverside Inventory', () => { location.hash = '#/inventory'; }, 'primary'), act('Interior view', () => s.world.setInterior(!s.world.interior))]
+        };
+      }
       const products = new Set(d.racks.flatMap((r) => r.pallets.map((p) => p.productId)));
-      return { icon: 'building', title: d.warehouse?.name || 'Warehouse', sub: `${d.warehouse?.code} · ${d.warehouse?.city}`, rows: [['Total inventory', `${fmt.n(d.occupied)} units`], ['Total products', fmt.n(products.size)], ['Storage capacity', `${fmt.n(d.capacity)} units`], ['Occupied', fmt.n(d.occupied)], ['Available', fmt.n(d.available)], ['Utilization', fmt.pct(d.utilization, 1)]],
+      return { icon: 'building', title: d.warehouse?.name || 'WareTrack 3D', sub: `${d.warehouse?.code || 'WH-01'} · ${d.warehouse?.city || 'Philadelphia'}`, rows: [['Total inventory', `${fmt.n(d.occupied)} units`], ['Total products', fmt.n(products.size)], ['Storage capacity', `${fmt.n(d.capacity)} units`], ['Occupied', fmt.n(d.occupied)], ['Available', fmt.n(d.available)], ['Utilization', fmt.pct(d.utilization, 1)]],
         extra: h('div', { style: { marginTop: '8px' } }, bar(d.utilization)), actions: [act('Open layout', () => { location.hash = '#/warehouse'; }), act('Interior view', () => s.world.setInterior(!s.world.interior))] };
     }
     case 'section': {
@@ -138,7 +162,7 @@ function cardFor(s, ref, d) {
         actions: [canDo(app, 'warehouse:write') && k.status !== 'occupied' && act(k.status === 'maintenance' ? 'Reopen dock' : 'Set maintenance', async () => { await attempt(() => api.patch(`/docks/${k.id}`, { status: k.status === 'maintenance' ? 'free' : 'maintenance' })); }), k.vehicle?.delivery?.status === 'Loading' && canDo(app, 'deliveries:write') && act('Dispatch', async () => { await attempt(() => api.post(`/deliveries/${k.vehicle.delivery.id}/dispatch`), 'Dispatched'); }, 'primary')].filter(Boolean) };
     }
     case 'office':
-      return { icon: 'building', title: 'Management office', sub: 'Operations & administration', rows: [['Management staff', d.office.employees], ['Open tasks', d.office.openTasks], ['Open orders', d.office.openOrders], ['Active users', d.office.activeUsers]], actions: [act('Analytics', () => { location.hash = '#/dashboard'; }, 'primary'), act('Orders', () => { location.hash = '#/orders'; })] };
+      return { icon: 'building', title: 'Management Office', sub: 'Central Multi-Warehouse Command', rows: [['Connected Hubs', 'WH-01 (WareTrack) & WH-02 (Riverside)'], ['Network Status', 'Both Hubs Online & Synchronized'], ['Management Staff', d.office.employees], ['Open Tasks', d.office.openTasks], ['Open Orders', d.office.openOrders], ['Active System Users', d.office.activeUsers]], actions: [act('Analytics Dashboard', () => { location.hash = '#/dashboard'; }, 'primary'), act('Orders Overview', () => { location.hash = '#/orders'; })] };
     default: return null;
   }
 }

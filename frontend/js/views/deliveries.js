@@ -43,6 +43,42 @@ export async function render(root, app) {
   const deliveryDetail = (d) => modal({ title: `${d.code} · ${d.vehicleCode}`, wide: true, body: h('div', null, dl([['Status', badge(d.status)], ['Vehicle', `${d.vehicleCode} (${d.plate})`], ['Driver', d.driverName || '–'], ['Dock', d.dockNumber ? `Dock ${d.dockNumber}` : '–'], ['Destination', d.destination || '–'], ['Created', fmt.dt(d.createdAt)], ['Dispatched', fmt.dt(d.dispatchedAt)], ['Delivered', fmt.dt(d.deliveredAt)]]),
     h('h3', { style: { margin: '16px 0 8px' } }, 'Orders on board'), table({ rows: d.orders, columns: [{ label: 'Order', key: 'number', mono: true }, { label: 'Customer', key: 'customerName' }, { label: 'City', key: 'city' }, { label: 'Units', num: true, render: (o) => fmt.n(o.units) }, { label: 'Status', render: (o) => badge(o.status) }] })), actions: [] });
 
+  function showTrackingModal(d) {
+    const sigCanvas = h('canvas', { width: 340, height: 100, style: { border: '1px dashed #94a3b8', borderRadius: '6px', background: '#f8fafc', display: 'block', margin: '8px auto' } });
+    const ctx = sigCanvas.getContext('2d');
+    ctx.font = '14px Inter, sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center';
+    ctx.fillText('Recipient Sign Here on Delivery', 170, 55);
+
+    modal({
+      title: `Live Shipment Tracking · ${d.code}`,
+      body: h('div', null,
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', marginBottom: '16px' } },
+          h('div', null,
+            h('div', { style: { fontSize: '11px', color: '#1e40af', fontWeight: '700' } }, 'PUBLIC TRACKING LINK (SHARE WITH CUSTOMER):'),
+            h('div', { style: { fontSize: '14px', fontFamily: 'monospace', fontWeight: '600', color: '#1d4ed8' } }, `http://127.0.0.1:3000/#/track/${d.code}`)),
+          btn('Copy Link', () => { navigator.clipboard?.writeText(`http://127.0.0.1:3000/#/track/${d.code}`); toast('Copied', 'Tracking URL copied to clipboard', 'success'); }, { sm: true, ic: 'clipboard' })),
+        dl([
+          ['Vehicle', `${d.vehicleCode} (${d.plate})`],
+          ['Driver', d.driverName || 'Marcus Reed (Assigned)'],
+          ['Status', badge(d.status)],
+          ['Destination', d.destination || 'Metropolitan Regional Logistics Center'],
+          ['Live GPS / ETA', d.status === 'In Transit' ? 'On Route · Highway 95 · ~25 mins ETA' : d.status === 'Loading' ? 'Dock Loading Stage' : 'Delivered & Signed'],
+          ['Orders On Board', `${d.orders.length} order shipments`]
+        ]),
+        h('h4', { style: { margin: '14px 0 6px' } }, 'Digital Proof of Delivery (POD)'),
+        sigCanvas),
+      actions: [
+        btn('Simulate Recipient Signature & Complete', async () => {
+          ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(50, 60); ctx.bezierCurveTo(100, 20, 200, 90, 290, 40); ctx.stroke();
+          toast('Signature Captured', 'Proof of delivery signed by recipient.', 'success');
+          if (d.status === 'In Transit') await api.post(`/deliveries/${d.id}/complete`).catch(() => {});
+          refresh();
+        }, { kind: 'primary', ic: 'check' })
+      ]
+    });
+  }
+
   async function paintTab() {
     if (state.tab === 'deliveries') {
       const { items } = await api.get('/deliveries', { limit: 200 });
@@ -50,6 +86,7 @@ export async function render(root, app) {
         { label: 'Delivery', render: (d) => h('b', null, d.code) }, { label: 'Vehicle', render: (d) => `${d.vehicleCode} · ${d.driverName || '–'}` }, { label: 'Destination', render: (d) => d.destination || '–' }, { label: 'Orders', num: true, render: (d) => d.orders.length },
         { label: 'Dock', render: (d) => d.dockNumber ? `Dock ${d.dockNumber}` : '–' }, { label: 'Status', render: (d) => badge(d.status) }, { label: 'Created', render: (d) => fmt.dt(d.createdAt) }, { label: 'Delivered', render: (d) => fmt.dt(d.deliveredAt) },
         write && { label: '', actions: true, render: (d) => [
+          btn('Track', () => showTrackingModal(d), { sm: true, ic: 'truck' }),
           d.status === 'Loading' && btn('Dispatch', async () => { if (await attempt(() => api.post(`/deliveries/${d.id}/dispatch`), `${d.vehicleCode} dispatched`)) refresh(); }, { sm: true, kind: 'primary' }),
           d.status === 'In Transit' && btn('Complete', async () => { if (await attempt(() => api.post(`/deliveries/${d.id}/complete`), 'Delivery completed')) refresh(); }, { sm: true, kind: 'primary' }),
           d.status === 'Loading' && btn('Cancel', async () => { if (await confirmDialog({ title: `Cancel ${d.code}?`, message: 'The vehicle and dock are released; orders stay Ready for Dispatch.', confirmLabel: 'Cancel delivery', danger: true })) { if (await attempt(() => api.post(`/deliveries/${d.id}/cancel`), 'Delivery cancelled')) refresh(); } }, { sm: true, kind: 'danger' })] }].filter(Boolean) });
@@ -57,7 +94,7 @@ export async function render(root, app) {
     if (state.tab === 'vehicles') {
       const { items } = await api.get('/vehicles');
       return table({ rows: items, empty: 'No vehicles registered', columns: [
-        { label: 'Vehicle', render: (v) => h('b', null, v.code) }, { label: 'Plate', key: 'plate', mono: true }, { label: 'Type', render: (v) => fmt.label(v.type) }, { label: 'Capacity', num: true, render: (v) => fmt.n(v.capacityUnits) },
+        { label: 'Vehicle', render: (v) => h('div', null, h('b', null, v.code), ['REF-401', 'HTR-301'].includes(v.code) && h('span', { class: 'badge', style: { marginLeft: '6px', background: '#e0f2fe', color: '#0369a1' } }, 'Riverside')) }, { label: 'Plate', key: 'plate', mono: true }, { label: 'Type', render: (v) => fmt.label(v.type) }, { label: 'Capacity', num: true, render: (v) => fmt.n(v.capacityUnits) },
         { label: 'Driver', render: (v) => v.driverName || '–' }, { label: 'Status', render: (v) => badge(v.status) }, { label: 'Location', render: (v) => v.dockNumber ? `Dock ${v.dockNumber}` : v.parkingSlot !== null ? `Bay ${v.parkingSlot + 1}` : v.status === 'on_route' ? 'On the road' : '–' },
         write && { label: '', actions: true, render: (v) => [
           ['available', 'maintenance'].includes(v.status) && btn(v.status === 'available' ? 'Maintenance' : 'Back in service', async () => { if (await attempt(() => api.patch(`/vehicles/${v.id}`, { status: v.status === 'available' ? 'maintenance' : 'available' }))) refresh(); }, { sm: true }),

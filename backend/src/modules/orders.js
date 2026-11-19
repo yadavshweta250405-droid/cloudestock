@@ -139,6 +139,53 @@ export function createService(ctx) {
       ctx.changed('orders', 'inventory', 'tasks', 'employees', 'deliveries');
       return svc.get(id);
     },
+    getPickPath(id) {
+      const o = svc.get(id);
+      const rows = db.all(`
+        SELECT sr.id AS rack_id, sr.code AS rack_code, sr.row_no, sr.col_no, ss.code AS section_code, ss.zone,
+               p.id AS product_id, p.name AS product_name, p.sku, a.quantity
+        FROM order_allocations a
+        JOIN order_items i ON i.id = a.order_item_id
+        JOIN inventory v ON v.id = a.inventory_id
+        JOIN storage_racks sr ON sr.id = v.rack_id
+        JOIN storage_sections ss ON ss.id = sr.section_id
+        JOIN products p ON p.id = i.product_id
+        WHERE i.order_id = ?
+        ORDER BY ss.code ASC, sr.col_no ASC, sr.row_no ASC
+      `, [id]);
+
+      const rackMap = new Map();
+      for (const r of rows) {
+        if (!rackMap.has(r.rack_id)) {
+          rackMap.set(r.rack_id, {
+            rackId: r.rack_id,
+            rackCode: r.rack_code,
+            sectionCode: r.section_code,
+            row: r.row_no,
+            col: r.col_no,
+            zone: r.zone,
+            items: []
+          });
+        }
+        rackMap.get(r.rack_id).items.push({ productId: r.product_id, productName: r.product_name, sku: r.sku, quantity: r.quantity });
+      }
+
+      const uniqueStops = Array.from(rackMap.values()).sort((a, b) => {
+        if (a.sectionCode !== b.sectionCode) return a.sectionCode.localeCompare(b.sectionCode);
+        if (a.col !== b.col) return a.col - b.col;
+        return (a.col % 2 === 1) ? (a.row - b.row) : (b.row - a.row);
+      }).map((s, idx) => ({ ...s, sequenceNumber: idx + 1 }));
+
+      return {
+        orderId: o.id,
+        orderNumber: o.number,
+        status: o.status,
+        customerName: o.customer_name,
+        stops: uniqueStops,
+        totalStops: uniqueStops.length,
+        totalUnits: rows.reduce((acc, r) => acc + r.quantity, 0)
+      };
+    },
   };
   return svc;
 }
@@ -157,6 +204,7 @@ export function registerRoutes(router, ctx) {
   });
   router.post('/api/orders', { perm: 'orders:write' }, (r) => { r.setStatus(201); return s.create(validate(r.body, schema), r.user); });
   router.get('/api/orders/:id', { perm: 'orders:read' }, (r) => s.get(Number(r.params.id)));
+  router.get('/api/orders/:id/pick-path', { perm: 'orders:read' }, (r) => s.getPickPath(Number(r.params.id)));
   router.put('/api/orders/:id', { perm: 'orders:write' }, (r) => s.update(Number(r.params.id), validate(r.body, schema, { partial: true }), r.user));
   router.post('/api/orders/:id/status', { perm: 'orders:write' }, (r) => s.transition(Number(r.params.id), validate(r.body, { status: { type: 'enum', values: ORDER_STATUSES, required: true } }).status, r.user));
 }

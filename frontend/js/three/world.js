@@ -18,7 +18,7 @@ export function createWorld(container, handlers = {}) {
   // ------------------------------------------------------------------ renderer, scene, camera
   const lowPower = Math.min(innerWidth, innerHeight) < 700 || (navigator.hardwareConcurrency || 8) <= 4;
   const renderer = new THREE.WebGLRenderer({ antialias: !lowPower, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, lowPower ? 1.25 : 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, lowPower ? 1.25 : 1.75));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor('#dce7fb');
   const canvas = renderer.domElement; canvas.setAttribute('aria-label', '3D warehouse'); canvas.tabIndex = 0;
@@ -27,12 +27,12 @@ export function createWorld(container, handlers = {}) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#dce7fb'); scene.fog = new THREE.Fog('#dce7fb', 190, 460);
   const camera = new THREE.PerspectiveCamera(26, 1, 1, 900);
-  const HOME_TARGET = new THREE.Vector3(8, 0, 6); const HOME_DIR = new THREE.Vector3(1, 0.86, 1).normalize(); const HOME_DIST = 150;
+  const HOME_TARGET = new THREE.Vector3(18, 0, 6); const HOME_DIR = new THREE.Vector3(1, 0.86, 1).normalize(); const HOME_DIST = 165;
   camera.position.copy(HOME_TARGET).addScaledVector(HOME_DIR, HOME_DIST);
   const controls = new OrbitControls(camera, canvas);
-  Object.assign(controls, { enableDamping: true, dampingFactor: 0.09, rotateSpeed: 0.55, zoomSpeed: 0.9, minDistance: 18, maxDistance: 240, maxPolarAngle: 1.3, minPolarAngle: 0.25, screenSpacePanning: false });
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.09, rotateSpeed: 0.55, zoomSpeed: 0.9, minDistance: 18, maxDistance: 280, maxPolarAngle: 1.3, minPolarAngle: 0.25, screenSpacePanning: false });
   controls.target.copy(HOME_TARGET); controls.update();
-  controls.addEventListener('change', () => { const t = controls.target; t.x = Math.max(-75, Math.min(85, t.x)); t.z = Math.max(-45, Math.min(55, t.z)); t.y = 0; });
+  controls.addEventListener('change', () => { const t = controls.target; t.x = Math.max(-75, Math.min(95, t.x)); t.z = Math.max(-45, Math.min(55, t.z)); t.y = 0; });
 
   scene.add(new THREE.HemisphereLight('#ffffff', '#c9d6f2', 1.0));
   const sun = new THREE.DirectionalLight('#fff6e8', 1.9); sun.position.set(70, 110, 60); sun.castShadow = true;
@@ -46,15 +46,28 @@ export function createWorld(container, handlers = {}) {
   scene.add(M.buildGround());
   const hall = M.buildHall(); scene.add(hall);
   const office = M.buildOffice(); scene.add(office);
+  const riverside = M.buildRiversideHub(); scene.add(riverside);
+  const skybridges = M.buildConnectingBridges(); scene.add(skybridges);
   const container3 = M.buildContainer(); container3.position.set(-52, 0.1, 14); container3.rotation.y = 0.25; scene.add(container3);
-  const treeSpots = [[-60, -30], [-48, -30], [-36, -29], [-24, -30], [-12, -30], [0, -30], [12, -28], [26, -28], [40, -30], [54, -30], [64, -18], [66, -4], [64, 10], [-62, -16], [-64, 0], [-62, 14], [34, 23.5], [10, 24]];
+  // Trees strictly along outer park perimeters and north fence (never inside buildings, parking or roads)
+  const treeSpots = [
+    [-60, -30], [-48, -30], [-36, -30], [-24, -30], [-12, -30], [0, -30], [12, -30], [26, -30], [40, -30], [54, -30], [68, -30], [80, -30],
+    [-62, -16], [-64, 0], [-62, 14], [-72, 28],
+    [84, -18], [86, -2], [84, 14], [86, 26]
+  ];
   treeSpots.forEach(([x, z], i) => { const t = M.buildTree(i); t.position.set(x, 0.1, z); t.scale.setScalar(0.9 + (i % 3) * 0.12); scene.add(t); });
-  // decorative stacks on the apron (like the pallets lying around in the reference video)
-  [[6.5, 15], [9, 15.2], [-46, 6], [-44, 8], [-47.5, 9], [58, 8], [58, 11]].forEach(([x, z], i) => { const s = M.buildPalletStack(4 + (i % 4), M.COLORS.wood); s.position.set(x, 0.1, z); s.rotation.y = (i % 2) * 0.4; scene.add(s); });
+  // decorative stacks in dedicated staging zones
+  [[-48, 8], [-44, 8], [-52, 11], [-48, 11], [74, 10], [74, 13], [74, 16]].forEach(([x, z], i) => { const s = M.buildPalletStack(4 + (i % 4), M.COLORS.wood); s.position.set(x, 0.1, z); s.rotation.y = (i % 2) * 0.4; scene.add(s); });
 
   const hu = hall.userData;
+  const ru = riverside.userData;
   const pickables = []; // static pickable meshes
-  pickables.push(...M.tagEntity(hall, { type: 'warehouse', id: 1 }), ...M.tagEntity(office, { type: 'office', id: 1 }));
+  pickables.push(
+    ...M.tagEntity(hall, { type: 'warehouse', id: 1 }),
+    ...M.tagEntity(riverside, { type: 'warehouse', id: 2 }),
+    ...M.tagEntity(office, { type: 'office', id: 1 }),
+    ...M.tagEntity(skybridges, { type: 'office', id: 1 })
+  );
 
   // ------------------------------------------------------------------ racks (instanced frames + invisible pick boxes) and pallets (instanced)
   const MAX_RACKS = 40;
@@ -156,6 +169,20 @@ export function createWorld(container, handlers = {}) {
     const pole = M.cyl(0.08, 0.08, 1.7, '#475569', { x: x + 3.7, y: 0.85, z: L.HALL.z1 + 1.9, seg: 8 }); scene.add(pole);
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 10), new THREE.MeshStandardMaterial({ color: '#16a34a', emissive: '#16a34a', emissiveIntensity: 0.9 })); lamp.position.set(x + 3.7, 1.85, L.HALL.z1 + 1.9); scene.add(lamp); beacons.push(lamp);
   });
+  L.RIVERSIDE_DOCKS_X.forEach((x, i) => {
+    const pole = M.cyl(0.08, 0.08, 1.7, '#475569', { x: x + 3.7, y: 0.85, z: L.RIVERSIDE.z1 + 1.9, seg: 8 }); scene.add(pole);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 10), new THREE.MeshStandardMaterial({ color: '#0ea5e9', emissive: '#0ea5e9', emissiveIntensity: 0.9 })); lamp.position.set(x + 3.7, 1.85, L.RIVERSIDE.z1 + 1.9); scene.add(lamp); beacons.push(lamp);
+  });
+
+  // Steel Dock Leveler Ramps (Visible bridging when truck is docked)
+  const dockRamps = new Map();
+  [...L.DOCK_X, ...L.RIVERSIDE_DOCKS_X].forEach((x) => {
+    const ramp = M.box(3.2, 0.12, 4.4, '#334155', { x, y: 0.28, z: 12.2, r: 0.04, flat: true });
+    ramp.rotation.x = 0.06;
+    ramp.visible = false;
+    scene.add(ramp);
+    dockRamps.set(x, ramp);
+  });
 
   // ------------------------------------------------------------------ vehicles, shipments, workers, forklifts
   const vehicles = new Map(); const workers = new Map(); const fork = [];
@@ -224,15 +251,25 @@ export function createWorld(container, handlers = {}) {
     if (e.status === 'on_break') return { key: 'break', x: 27, z: L.WALK_Z + 1, face: 0, idle: true };
     const spots = HOME[e.department] || HOME.Maintenance; return { key: `idle${e.department}`, spots, idle: true, wander: true };
   }
+  let initialBootDone = false;
   function addWorker(e) {
     const obj = M.buildWorker(e.department, e.id); scene.add(obj);
     const view = { id: e.id, obj, mover: new Mover(obj, { speed: 2.6, turnRate: 9 }), planKey: null, work: false, wanderT: 4 + Math.random() * 8, pick: M.tagEntity(obj, { type: 'worker', id: e.id }), seed: e.id };
-    workers.set(e.id, view); pickDirty = true; return view;
+    workers.set(e.id, view); pickDirty = true;
+    if (initialBootDone) {
+      // Dynamic spawn: walks out of the Management Office door to their assigned station
+      view.mover.teleport({ x: L.OFFICE.doorX, z: L.WALK_Z }, 0);
+    }
+    return view;
   }
   function sendWorker(view, x, z, face, work) {
     const g = walk; const from = g.nearest(view.obj.position.x, view.obj.position.z); const to = g.nearest(x, z);
-    const ids = g.path(from, to) || [to]; const pts = g.points(ids); pts.push({ x, z });
-    view.work = false; view.mover.setPath(pts, () => { view.obj.rotation.y = face ?? view.obj.rotation.y; view.work = !!work; });
+    const ids = g.path(from, to) || [to]; const pts = g.points(ids);
+    // Lateral offset so workers walk in separate lanes without head-on overlap
+    const lateral = ((view.seed * 11) % 5 - 2) * 0.18;
+    const finalPts = pts.map((p, idx) => ({ x: p.x + (idx === 0 ? 0 : lateral), z: p.z }));
+    finalPts.push({ x, z });
+    view.work = false; view.mover.setPath(finalPts, () => { view.obj.rotation.y = face ?? view.obj.rotation.y; view.work = !!work; });
   }
   function syncWorkers(d) {
     const seen = new Set();
@@ -245,20 +282,108 @@ export function createWorld(container, handlers = {}) {
       const first = view.planKey === null; view.planKey = planKey; if (plan.hidden) { view.mover.teleport({ x: L.OFFICE.doorX, z: L.WALK_Z }); continue; }
       view.wanderT = 3 + Math.random() * 8;
       const spot = plan.spots ? plan.spots[view.seed % plan.spots.length] : [plan.x, plan.z]; const jx = ((view.seed * 7) % 5) * 0.35 - 0.7;
-      if (first) { view.mover.teleport({ x: spot[0] + jx, z: spot[1] + (plan.work ? 0 : 0.6) }, plan.face ?? ((view.seed % 8) * 0.8)); view.work = !!plan.work; }
+      if (first && !initialBootDone) { view.mover.teleport({ x: spot[0] + jx, z: spot[1] + (plan.work ? 0 : 0.6) }, plan.face ?? ((view.seed % 8) * 0.8)); view.work = !!plan.work; }
       else sendWorker(view, spot[0] + (plan.work ? 0 : jx), spot[1], plan.face, plan.work);
     }
     for (const [id, view] of workers) if (!seen.has(id)) { scene.remove(view.obj); workers.delete(id); pickDirty = true; }
+    initialBootDone = true;
   }
-  // two decorative forklifts shuttling pallets (no data behind them)
-  [[[36, 14], [36, 6], [41, 6], [36, 6]], [[-46, 20], [-40, 20], [-40, 25], [-46, 25]]].forEach((pts, i) => {
-    const f = M.buildForklift(); f.position.set(pts[0][0], FLOOR_OUT, pts[0][1]); scene.add(f);
-    const view = { obj: f, mover: new Mover(f, { speed: 3.2, turnRate: 6 }), pts, i: 0, wait: 1 + i, carry: false }; fork.push(view);
+  // Gate-Loading Forklifts: Strictly travel through roll-up dock door gates into parked trucks and reverse out
+  // Forklift 0 services WareTrack docks (L.DOCK_X: -31, -21, -11, -1)
+  // Forklift 1 services Riverside docks (L.RIVERSIDE_DOCKS_X: 48, 58, 68)
+  const forkConfigs = [
+    { hub: 'waretrack', defaultX: -31, docks: L.DOCK_X },
+    { hub: 'riverside', defaultX: 48, docks: L.RIVERSIDE_DOCKS_X }
+  ];
+  forkConfigs.forEach((cfg, i) => {
+    const f = M.buildForklift(); f.position.set(cfg.defaultX, FLOOR_IN, 4.2); scene.add(f);
+    const view = {
+      obj: f,
+      mover: new Mover(f, { speed: 2.8, turnRate: 8 }),
+      cfg,
+      currentDockX: cfg.defaultX,
+      pts: [[cfg.defaultX, 4.2], [cfg.defaultX, 10.0], [cfg.defaultX, 15.2], [cfg.defaultX, 10.0]],
+      i: 0,
+      wait: 1.5 + i * 2,
+      carry: false
+    };
+    fork.push(view);
   });
+
+  function getParkedTruckAt(dockX) {
+    for (const v of vehicles.values()) {
+      if (v.obj.visible && Math.abs(v.obj.position.x - dockX) < 3.2 && v.obj.position.z >= 13.5) {
+        return v;
+      }
+    }
+    return null;
+  }
+
   function updateForklifts(dt) {
+    // Update steel dock ramps visibility: active only when a truck is backed up to that bay
+    [...L.DOCK_X, ...L.RIVERSIDE_DOCKS_X].forEach((x) => {
+      const r = dockRamps.get(x);
+      if (r) r.visible = !!getParkedTruckAt(x);
+    });
+
     for (const v of fork) {
-      if (v.mover.idle) { v.wait -= dt; if (v.wait <= 0) { v.i = (v.i + 1) % v.pts.length; v.carry = v.i === 1 || v.i === 2; v.obj.userData.carry.visible = v.carry; v.wait = 1.2; const p = v.pts[v.i]; v.mover.setPath([{ x: p[0], z: p[1] }]); } }
-      v.mover.update(dt); v.obj.userData.wheels.forEach((w) => { if (v.mover.moving) w.rotation.x += dt * 6; });
+      // Find which dock in this warehouse hub actually has a truck parked
+      let targetDockX = null;
+      let parkedTruck = null;
+      for (const dx of v.cfg.docks) {
+        const t = getParkedTruckAt(dx);
+        if (t) {
+          targetDockX = dx;
+          parkedTruck = t;
+          break;
+        }
+      }
+
+      // If NO truck is parked at any dock in this hub:
+      if (!parkedTruck) {
+        v.carry = false;
+        v.obj.userData.carry.visible = false;
+        // Park inside safely at indoor staging pad
+        if (v.obj.position.z > 4.6 || Math.abs(v.obj.position.x - v.cfg.defaultX) > 0.5) {
+          v.mover.setPath([{ x: v.obj.position.x, z: 4.2 }, { x: v.cfg.defaultX, z: 4.2 }]);
+        }
+        v.mover.update(dt);
+        // Firmly grounded on floor - zero flying or floating in mid-air
+        v.obj.position.y = FLOOR_IN;
+        v.obj.userData.wheels.forEach((w) => { if (v.mover.moving) w.rotation.x += dt * 6; });
+        continue;
+      }
+
+      // A truck IS parked at targetDockX!
+      if (v.currentDockX !== targetDockX) {
+        v.currentDockX = targetDockX;
+        v.pts = [[targetDockX, 4.2], [targetDockX, 10.0], [targetDockX, 15.2], [targetDockX, 10.0]];
+        v.i = 0;
+        v.mover.teleport({ x: targetDockX, z: 4.2 }, 0);
+      }
+
+      if (v.mover.idle) {
+        v.wait -= dt;
+        if (v.wait <= 0) {
+          v.i = (v.i + 1) % v.pts.length;
+          // Carry pallet only when driving out to truck (i=1) and inside truck (i=2)
+          v.carry = v.i === 1 || v.i === 2;
+          v.obj.userData.carry.visible = v.carry;
+          v.wait = v.i === 2 ? 1.8 : 0.8;
+          const p = v.pts[v.i];
+          v.mover.setPath([{ x: p[0], z: p[1] }]);
+        }
+      }
+      v.mover.update(dt);
+
+      // Height physics: stays firmly grounded on the floor and smooth ramp into truck bed
+      if (v.obj.position.z > 10.0) {
+        const rampK = Math.min(1, Math.max(0, (v.obj.position.z - 10.0) / 4.8));
+        v.obj.position.y = FLOOR_IN + rampK * 0.35;
+      } else {
+        v.obj.position.y = FLOOR_IN;
+      }
+      v.obj.userData.wheels.forEach((w) => { if (v.mover.moving) w.rotation.x += dt * 6; });
     }
   }
 
@@ -271,6 +396,76 @@ export function createWorld(container, handlers = {}) {
   pin.add(pinCone, pinBall, pinDot); [selBox, selEdges, hovBox, pin].forEach((o) => { o.visible = false; o.renderOrder = 5; scene.add(o); });
   const bTmp = new THREE.Box3(); const bVec = new THREE.Vector3();
 
+  // Smart 3D Pick-Path Optimization (Shortest Route Glowing Ribbon)
+  const pickPathGroup = new THREE.Group(); pickPathGroup.renderOrder = 6; pickPathGroup.visible = false; scene.add(pickPathGroup);
+  const pickLineMat = new THREE.LineDashedMaterial({ color: '#10b981', dashSize: 0.8, gapSize: 0.4, transparent: true, opacity: 0.95 });
+  const pickLineGeo = new THREE.BufferGeometry();
+  const pickPathLine = new THREE.Line(pickLineGeo, pickLineMat); pickPathGroup.add(pickPathLine);
+  const wpGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.04, 16);
+  const wpMat = new THREE.MeshBasicMaterial({ color: '#10b981', transparent: true, opacity: 0.8 });
+  const pickWaypoints = [];
+  for (let k = 0; k < 14; k++) { const m = new THREE.Mesh(wpGeo, wpMat); m.visible = false; pickPathGroup.add(m); pickWaypoints.push(m); }
+
+  // Multi-Stop Order Pick-Path Route
+  const orderPathGroup = new THREE.Group(); orderPathGroup.renderOrder = 7; orderPathGroup.visible = false; scene.add(orderPathGroup);
+  const orderLineMat = new THREE.LineDashedMaterial({ color: '#059669', dashSize: 1.0, gapSize: 0.5, transparent: true, opacity: 0.95 });
+  const orderLineGeo = new THREE.BufferGeometry();
+  const orderPathLine = new THREE.Line(orderLineGeo, orderLineMat); orderPathGroup.add(orderPathLine);
+  let orderSprites = [];
+
+  function showOrderPickPath(pickData) {
+    if (!pickData || !pickData.stops || !pickData.stops.length) {
+      orderPathGroup.visible = false;
+      return;
+    }
+    orderSprites.forEach((sp) => { orderPathGroup.remove(sp); sp.material?.dispose(); });
+    orderSprites = [];
+
+    const pts = [{ x: 0, y: FLOOR_IN + 0.1, z: L.WALK_Z }];
+    let lastPt = pts[0];
+
+    for (const stop of pickData.stops) {
+      const p = placeOf.get(stop.rackId);
+      if (!p) continue;
+      const approachX = p.approach ? p.approach.x : p.x;
+      const approachZ = p.approach ? p.approach.z : p.z + 1.8;
+      const floorY = (p.floor ?? FLOOR_IN) + 0.1;
+
+      const fromNode = walk.nearest(lastPt.x, lastPt.z);
+      const toNode = walk.nearest(approachX, approachZ);
+      const pathIds = walk.path(fromNode, toNode) || [toNode];
+      walk.points(pathIds).forEach((wp) => pts.push({ x: wp.x, y: floorY, z: wp.z }));
+      pts.push({ x: approachX, y: floorY, z: approachZ });
+      lastPt = { x: approachX, y: floorY, z: approachZ };
+
+      const label = `Stop ${stop.stopNumber}: ${stop.rackCode} (x${stop.quantity})`;
+      const sp = M.textSprite(label, { bg: '#059669', fg: '#ffffff', scale: 0.032, height: 56, padX: 18, depthTest: false });
+      sp.position.set(p.x, (p.floor ?? FLOOR_IN) + 4.8, p.z);
+      orderPathGroup.add(sp);
+      orderSprites.push(sp);
+    }
+
+    const returnFrom = walk.nearest(lastPt.x, lastPt.z);
+    const returnTo = walk.nearest(0, L.WALK_Z);
+    const returnIds = walk.path(returnFrom, returnTo) || [returnTo];
+    walk.points(returnIds).forEach((wp) => pts.push({ x: wp.x, y: FLOOR_IN + 0.1, z: wp.z }));
+    pts.push({ x: 0, y: FLOOR_IN + 0.1, z: L.WALK_Z });
+
+    const vectors = pts.map((pt) => new THREE.Vector3(pt.x, pt.y, pt.z));
+    orderLineGeo.setFromPoints(vectors);
+    orderPathLine.computeLineDistances();
+    orderPathGroup.visible = true;
+
+    setInterior(true);
+    startTween(new THREE.Vector3(12, 0, 4), 95);
+  }
+
+  function clearOrderPickPath() {
+    orderPathGroup.visible = false;
+    orderSprites.forEach((sp) => { orderPathGroup.remove(sp); sp.material?.dispose(); });
+    orderSprites = [];
+  }
+
   function boundsOf(ref) {
     if (!ref) return null; const b = new THREE.Box3();
     switch (ref.type) {
@@ -279,7 +474,9 @@ export function createWorld(container, handlers = {}) {
       case 'vehicle': case 'shipment': { const v = vehicles.get(ref.type === 'vehicle' ? `v${ref.id}` : `s${ref.id}`); return v ? b.setFromObject(v.model) : null; }
       case 'worker': { const w = workers.get(ref.id); return w && w.obj.visible ? b.setFromObject(w.obj) : null; }
       case 'dock': { const docks = data?.docks.slice().sort((a, c) => a.number - c.number) || []; const i = docks.findIndex((x) => x.id === ref.id); if (i < 0) return null; return b.setFromCenterAndSize(new THREE.Vector3(L.DOCK_X[i], 2.4, L.HALL.z1 + 0.6), new THREE.Vector3(7.2, 4.8, 2.2)); }
-      case 'warehouse': return b.set(new THREE.Vector3(L.HALL.x0, 0, L.HALL.z0), new THREE.Vector3(L.HALL.x1, L.HALL.wall + 1, L.HALL.z1));
+      case 'warehouse':
+        if (ref.id === 2) return b.set(new THREE.Vector3(L.RIVERSIDE.x0, 0, L.RIVERSIDE.z0), new THREE.Vector3(L.RIVERSIDE.x1, L.RIVERSIDE.wall + 1, L.RIVERSIDE.z1));
+        return b.set(new THREE.Vector3(L.HALL.x0, 0, L.HALL.z0), new THREE.Vector3(L.HALL.x1, L.HALL.wall + 1, L.HALL.z1));
       case 'office': return b.set(new THREE.Vector3(L.OFFICE.x0, 0, L.OFFICE.z0), new THREE.Vector3(L.OFFICE.x1, L.OFFICE.h + 0.6, L.OFFICE.z1));
       case 'section': { const rs = data?.racks.filter((r) => r.sectionId === ref.id) || []; if (!rs.length) return null; for (const r of rs) { const p = placeOf.get(r.id); if (p) b.expandByPoint(new THREE.Vector3(p.x - 2.2, 0, p.z - 0.9)).expandByPoint(new THREE.Vector3(p.x + 2.2, 4.4, p.z + 0.9)); } return b; }
       default: return null;
@@ -291,6 +488,35 @@ export function createWorld(container, handlers = {}) {
     selBox.visible = selEdges.visible = pin.visible = !!sb;
     if (sb) { placeBox(selBox, sb); selEdges.scale.copy(selBox.scale); selEdges.position.copy(selBox.position); pin.position.set(selBox.position.x, sb.max.y + 1.1 + Math.sin(time * 3) * 0.25, selBox.position.z); }
     const hb = hovered && !(selected && same(hovered, selected)) && boundsOf(hovered); hovBox.visible = !!hb; if (hb) placeBox(hovBox, hb, 0.1);
+
+    // Smart 3D Pick-Path calculation: shortest walking route from dock staging to rack/pallet
+    if (selected && (selected.type === 'rack' || selected.type === 'pallet')) {
+      const rackId = selected.type === 'rack' ? selected.id : selected.rackId;
+      const p = placeOf.get(rackId);
+      if (p && p.approach) {
+        const floorY = (p.floor ?? FLOOR_IN) + 0.08;
+        const from = walk.nearest(0, L.WALK_Z);
+        const to = walk.nearest(p.approach.x, p.approach.z);
+        const ids = walk.path(from, to) || [to];
+        const pts = walk.points(ids);
+        const allPts = [{ x: 0, z: L.WALK_Z }, ...pts, { x: p.approach.x, z: p.approach.z }];
+        const lineVectors = allPts.map((pt) => new THREE.Vector3(pt.x, floorY, pt.z));
+        pickLineGeo.setFromPoints(lineVectors);
+        pickPathLine.computeLineDistances();
+        pickWaypoints.forEach((w) => { w.visible = false; });
+        allPts.forEach((pt, idx) => {
+          if (idx < pickWaypoints.length) {
+            pickWaypoints[idx].position.set(pt.x, floorY, pt.z);
+            pickWaypoints[idx].visible = true;
+          }
+        });
+        pickPathGroup.visible = true;
+      } else {
+        pickPathGroup.visible = false;
+      }
+    } else {
+      pickPathGroup.visible = false;
+    }
     void bTmp;
   }
   const same = (a, b) => a && b && a.type === b.type && a.id === b.id;
@@ -380,12 +606,31 @@ export function createWorld(container, handlers = {}) {
         if (w.wanderT <= 0) { w.wanderT = 7 + Math.random() * 9; const spots = HOME[w.data.department] || HOME.Maintenance; const s = spots[Math.floor(Math.random() * spots.length)]; sendWorker(w, s[0] + (Math.random() - 0.5) * 3, s[1], undefined, false); }
       }
     }
+    // Worker-to-worker anti-collision repulsion (prevents avatars clipping through each other)
+    const activeWorkers = Array.from(workers.values()).filter((w) => w.obj.visible && !w.work);
+    for (let i = 0; i < activeWorkers.length; i++) {
+      for (let j = i + 1; j < activeWorkers.length; j++) {
+        const wa = activeWorkers[i].obj.position; const wb = activeWorkers[j].obj.position;
+        const dx = wb.x - wa.x; const dz = wb.z - wa.z;
+        const dist = Math.hypot(dx, dz);
+        const MIN_DIST = 1.15;
+        if (dist < MIN_DIST && dist > 0.001) {
+          const push = (MIN_DIST - dist) * 0.5;
+          const nx = dx / dist; const nz = dz / dist;
+          wa.x -= nx * push; wa.z -= nz * push;
+          wb.x += nx * push; wb.z += nz * push;
+        }
+      }
+    }
     updateForklifts(dt);
+    if (pickPathGroup.visible) pickLineMat.dashOffset -= dt * 2.8;
+    if (orderPathGroup.visible) orderLineMat.dashOffset -= dt * 3.2;
     for (const sp of warnSprites.values()) if (sp.visible) sp.position.y = sp.userData.baseY + Math.sin(time * 3) * 0.25;
     for (let i = fx.length - 1; i >= 0; i--) { const f = fx[i]; f.t += dt; const k = f.t / f.dur; f.m.scale.setScalar(1 + k * 1.8); f.m.material.opacity = Math.max(0, 0.9 * (1 - k)); if (k >= 1) { scene.remove(f.m); f.m.geometry.dispose(); f.m.material.dispose(); fx.splice(i, 1); } }
     // roof lift animation
     const target = interior ? 1 : 0; interiorT += (target - interiorT) * Math.min(1, dt * 5); if (Math.abs(target - interiorT) < 0.004) interiorT = target;
     hu.roof.position.y = interiorT * 14; hu.roof.visible = interiorT < 0.97; hu.near.scale.y = 1 - 0.86 * interiorT; hu.doorGear.visible = interiorT < 0.5;
+    if (ru?.roof) { ru.roof.position.y = interiorT * 14; ru.roof.visible = interiorT < 0.97; ru.near.scale.y = 1 - 0.86 * interiorT; ru.doorGear.visible = interiorT < 0.5; }
     if (tween) { tween.t += dt; const k = ease(Math.min(1, tween.t / tween.dur)); controls.target.lerpVectors(tween.fromT, tween.toT, k); lookV.copy(tween.fromDir).lerp(tween.toDir, k).normalize(); camera.position.copy(controls.target).addScaledVector(lookV, tween.fromD + (tween.toD - tween.fromD) * k); if (tween.t >= tween.dur) tween = null; }
     if (selected || hovered) refreshHighlights();
     if (Math.floor(time * 2) !== Math.floor((time - dt) * 2)) updateLod();
@@ -417,6 +662,10 @@ export function createWorld(container, handlers = {}) {
     rotate(deg) { const off = camera.position.clone().sub(controls.target); const d = off.length(); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), (deg * Math.PI) / 180); startTween(controls.target.clone(), d, off.normalize()); },
     setPaused(p) { paused = p; if (p) stop(); else start(); },
     setQuality, boundsOf, start, stop,
+    showOrderPickPath, clearOrderPickPath,
+    focusWarehouse(warehouseId = 1) {
+      select({ type: 'warehouse', id: Number(warehouseId) }, { focus: true });
+    },
     dispose() { stop(); ro.disconnect(); controls.dispose(); renderer.dispose(); canvas.remove(); },
     debug: { scene, camera, vehicles, workers, palletMap: () => palletMap, stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries }) },
   };

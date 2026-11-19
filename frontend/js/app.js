@@ -1,8 +1,8 @@
-import { h, icon, mount, clear, fmt, toast, toastError, formModal, debounce, badge } from './ui/dom.js';
+import { h, icon, mount, clear, fmt, toast, toastError, formModal, debounce, badge, currencyState } from './ui/dom.js';
 import { api, session, connectEvents, setUnauthorizedHandler } from './api.js';
 import { can, ROLE_LABELS } from '/shared/constants.js';
 
-export const app = { user: null, scene: null, world: null, route: null, viewApi: null, sync: null, connected: true };
+export const app = { user: null, scene: null, world: null, route: null, viewApi: null, sync: null, connected: true, currencies: [] };
 
 const NAV = [
   { id: 'world', label: '3D World', icon: 'box', perm: 'scene:read' },
@@ -11,6 +11,8 @@ const NAV = [
   { id: 'orders', label: 'Orders', icon: 'clipboard', perm: 'orders:read' },
   { id: 'deliveries', label: 'Fleet', icon: 'truck', perm: 'deliveries:read' },
   { id: 'receiving', label: 'Inbound', icon: 'inbox', perm: 'receiving:read' },
+  { id: 'purchases', label: 'Purchases', icon: 'cart', perm: 'purchase_orders:read' },
+  { id: 'returns', label: 'Returns', icon: 'rotate-ccw', perm: 'returns:read' },
   { id: 'people', label: 'Team', icon: 'users', perm: 'employees:read' },
   { id: 'warehouse', label: 'Layout', icon: 'building', perm: 'warehouse:read' },
   { id: 'activity', label: 'Activity', icon: 'activity', perm: 'dashboard:read' },
@@ -20,6 +22,7 @@ const loaders = {
   world: () => import('./views/world.js'), dashboard: () => import('./views/dashboard.js'), inventory: () => import('./views/inventory.js'), orders: () => import('./views/orders.js'),
   deliveries: () => import('./views/deliveries.js'), receiving: () => import('./views/receiving.js'), people: () => import('./views/people.js'), warehouse: () => import('./views/warehouse.js'),
   activity: () => import('./views/activity.js'), users: () => import('./views/users.js'),
+  purchases: () => import('./views/purchases.js'), returns: () => import('./views/returns.js'),
 };
 
 let root; let stopEvents = () => {}; let els = {};
@@ -39,7 +42,12 @@ async function boot() {
 }
 
 // ----------------------------------------------------------------------------------------- login
-const DEMO = [['Administrator', 'admin@waretrack.local', 'Admin@123'], ['Warehouse Manager', 'manager@waretrack.local', 'Manager@123'], ['Inventory Manager', 'inventory@waretrack.local', 'Inventory@123'], ['Employee', 'employee@waretrack.local', 'Employee@123']];
+const DEMO = [
+  ['WareTrack Admin', 'admin@waretrack.local', 'Admin@123'],
+  ['Riverside Admin', 'admin@riversidehub.local', 'Admin@123'],
+  ['Warehouse Manager', 'manager@waretrack.local', 'Manager@123'],
+  ['Inventory Manager', 'inventory@waretrack.local', 'Inventory@123']
+];
 function showLogin() {
   stopEvents(); app.user = null;
   const err = h('div', { class: 'form-error hidden' });
@@ -63,6 +71,75 @@ export function signOut(callApi = true) {
   session.token = null; app.world?.dispose?.(); app.world = null; app.worldView = null; app.scene = null; showLogin();
 }
 
+let simActive = false;
+let simSpeed = 1;
+let simTimer = null;
+
+const PERSONAS = [
+  { label: 'Alex Chen · Platform Master (Super Admin)', email: 'admin@waretrack.local', pass: 'Admin@123' },
+  { label: 'David Park · Riverside Director (Client Admin)', email: 'admin@riversidehub.local', pass: 'Admin@123' },
+  { label: 'Priya Nair · Receiving Lead (Dept Manager)', email: 'manager@waretrack.local', pass: 'Manager@123' },
+  { label: 'Elena Petrova · Inventory Lead (Dept Manager)', email: 'inventory@waretrack.local', pass: 'Inventory@123' },
+  { label: 'Aisha Khan · Ground Worker (Operator)', email: 'employee@waretrack.local', pass: 'Employee@123' }
+];
+
+async function switchPersona(email, pass) {
+  try {
+    const r = await api.post('/auth/login', { email, password: pass });
+    session.token = r.token;
+    app.user = r.user;
+    app.unread = 0;
+    toast('Role Switched', `Logged in as ${r.user.name} (${ROLE_LABELS[r.user.role]})`, 'success');
+    showShell();
+  } catch (e) {
+    toast('Switch failed', e.message, 'error');
+  }
+}
+
+function toggleSim() {
+  simActive = !simActive;
+  if (simActive) {
+    startSimLoop();
+    toast('Auto-Pilot ON', `Live simulation active (${simSpeed}x speed)`, 'success');
+  } else {
+    stopSimLoop();
+    toast('Auto-Pilot OFF', 'Warehouse in 100% manual control mode', 'info');
+  }
+  showShell();
+}
+
+function startSimLoop() {
+  stopSimLoop();
+  const delay = Math.max(7000, 22000 / simSpeed);
+  simTimer = setInterval(async () => {
+    if (!simActive || !app.user) return;
+    try {
+      const act = Math.floor(Math.random() * 3);
+      if (act === 0) {
+        // Auto-generate customer order
+        const prods = (await api.get('/products')).items.filter((p) => p.available > 5);
+        if (prods.length) {
+          const p = prods[Math.floor(Math.random() * prods.length)];
+          const custs = ['Northwind Traders', 'Bluebird Cafe', 'Summit Sports', 'PharmaCare Logistics'];
+          const c = custs[Math.floor(Math.random() * custs.length)];
+          await api.post('/orders', { customerName: c, items: [{ productId: p.id, quantity: Math.min(10, Math.floor(Math.random() * 4) + 1) }] });
+        }
+      } else if (act === 1) {
+        // Assign pending task to available employee
+        const tasks = (await api.get('/tasks', { status: 'pending' })).items;
+        const free = (await api.get('/employees')).items.filter((e) => e.status === 'available');
+        if (tasks.length && free.length) {
+          await api.post(`/tasks/${tasks[0].id}/assign`, { employeeId: free[0].id });
+        }
+      }
+    } catch { /* ignore sim errors */ }
+  }, delay);
+}
+
+function stopSimLoop() {
+  if (simTimer) { clearInterval(simTimer); simTimer = null; }
+}
+
 // ----------------------------------------------------------------------------------------- shell
 function showShell() {
   const visible = NAV.filter((n) => can(app.user.role, n.perm));
@@ -76,9 +153,80 @@ function showShell() {
   els.rail = h('nav', { class: 'rail', 'aria-label': 'Main' }, visible.map((n) => h('button', { 'data-id': n.id, title: n.label, onClick: () => { location.hash = `#/${n.id}`; } }, icon(n.icon), n.label)));
   els.worldHost = h('div', { class: 'world' });
   els.sheet = h('div', { class: 'sheet hidden' });
+
+  const personaSelect = h('select', {
+    style: { fontSize: '12px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' },
+    onChange: (e) => {
+      const p = PERSONAS.find((x) => x.email === e.target.value);
+      if (p) switchPersona(p.email, p.pass);
+    }
+  }, PERSONAS.map((p) => h('option', { value: p.email, selected: p.email === app.user?.email }, p.label)));
+
+  const simBtn = h('button', {
+    class: `btn sm ${simActive ? 'primary' : ''}`,
+    title: 'Toggle live autonomous simulation engine',
+    style: { fontWeight: '700' },
+    onClick: toggleSim
+  }, simActive ? 'Auto-Pilot: ON' : 'Auto-Pilot: OFF');
+
+  const speedSelect = h('select', {
+    style: { fontSize: '11px', padding: '4px 6px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' },
+    onChange: (e) => { simSpeed = Number(e.target.value); if (simActive) startSimLoop(); }
+  }, [1, 2, 5].map((s) => h('option', { value: s, selected: simSpeed === s }, `${s}x`)));
+
+  const currencySelect = h('select', {
+    style: { fontSize: '12px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' },
+    onChange: (e) => {
+      const code = e.target.value;
+      const c = app.currencies?.find((x) => x.code === code);
+      if (c) {
+        currencyState.code = c.code;
+        currencyState.symbol = c.symbol;
+        currencyState.rate = c.rate_to_usd || 1.0;
+        toast('Currency updated', `Displaying prices in ${c.code} (${c.symbol})`, 'info');
+        if (app.route !== 'world') app.viewApi?.refresh?.();
+      }
+    }
+  }, [
+    { code: 'USD', symbol: '$' },
+    { code: 'EUR', symbol: '€' },
+    { code: 'GBP', symbol: '£' },
+    { code: 'INR', symbol: '₹' },
+    { code: 'CAD', symbol: 'CA$' },
+    { code: 'AUD', symbol: 'A$' },
+    { code: 'JPY', symbol: '¥' }
+  ].map((c) => h('option', { value: c.code, selected: c.code === currencyState.code }, `${c.code} (${c.symbol})`)));
+
+  api.get('/currencies').then((res) => {
+    if (res?.items?.length) {
+      app.currencies = res.items;
+      clear(currencySelect);
+      res.items.forEach((c) => {
+        const opt = h('option', { value: c.code, selected: c.code === currencyState.code }, `${c.code} (${c.symbol})`);
+        currencySelect.appendChild(opt);
+      });
+      const active = res.items.find((x) => x.code === currencyState.code) || res.items[0];
+      if (active) {
+        currencyState.code = active.code;
+        currencyState.symbol = active.symbol;
+        currencyState.rate = active.rate_to_usd || 1.0;
+      }
+    }
+  }).catch(() => {});
+
   mount(root, h('div', { class: 'shell' },
-    h('header', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'logo' }, icon('box')), h('span', null, 'WareTrack')),
-      h('div', { class: 'search' }, icon('search'), els.search, els.results), h('div', { class: 'spacer' }), els.live, els.bellWrap, els.userWrap),
+    h('header', { class: 'topbar' },
+      h('div', { class: 'brand', style: { cursor: 'pointer' }, onClick: () => { location.hash = '#/world'; app.world?.select?.({ type: 'office', id: 1 }, { focus: true }); } },
+        h('div', { class: 'logo' }, icon('box')), h('span', null, 'WareTrack 3D')),
+      h('div', { class: 'search' }, icon('search'), els.search, els.results),
+      h('div', { class: 'wh-nav-pills', style: { display: 'flex', gap: '6px', alignItems: 'center', marginLeft: '10px' } },
+        h('button', { class: 'btn sm', title: 'Focus WareTrack WH-01', onClick: () => { location.hash = '#/world'; app.world?.select?.({ type: 'warehouse', id: 1 }, { focus: true }); } }, 'WH-01: WareTrack'),
+        h('button', { class: 'btn sm primary', title: 'Focus Riverside Hub WH-02', onClick: () => { location.hash = '#/world'; app.world?.select?.({ type: 'warehouse', id: 2 }, { focus: true }); } }, 'WH-02: Riverside Hub'),
+        h('button', { class: 'btn sm', title: 'Focus Management Office', onClick: () => { location.hash = '#/world'; app.world?.select?.({ type: 'office', id: 1 }, { focus: true }); } }, 'Management Office')),
+      h('div', { class: 'spacer' }),
+      h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', marginRight: '8px' } },
+        simBtn, simActive && speedSelect, currencySelect, personaSelect),
+      els.live, els.bellWrap, els.userWrap),
     els.rail, h('main', { class: 'main' }, els.worldHost, els.sheet)));
   renderUser(); renderBell();
   els.search.addEventListener('input', debounce(runSearch, 250));
@@ -169,7 +317,7 @@ async function runSearch() {
 export async function openEntity(type, id) {
   const world = { rack: 'rack', vehicle: 'vehicle', employee: 'worker', dock: 'dock' }[type];
   if (world) { location.hash = '#/world'; await ready; setTimeout(() => app.viewApi?.focusEntity?.({ type: world, id }), 60); return; }
-  const view = { product: 'inventory', order: 'orders', delivery: 'deliveries', shipment: 'receiving' }[type];
+  const view = { product: 'inventory', order: 'orders', delivery: 'deliveries', shipment: 'receiving', purchase_order: 'purchases', return: 'returns' }[type];
   if (view) { location.hash = `#/${view}`; await ready; setTimeout(() => app.viewApi?.open?.(id), 80); }
 }
 

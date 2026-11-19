@@ -14,13 +14,76 @@ export function rackStatus(used, capacity) {
 export function createService(ctx) {
   const { db } = ctx;
   const svc = {
-    structure() {
-      const wh = db.get('SELECT * FROM warehouses ORDER BY id LIMIT 1');
+    listWarehouses() {
+      return db.all(`
+        SELECT w.*,
+               (SELECT COUNT(*) FROM storage_sections WHERE warehouse_id = w.id) AS section_count,
+               (SELECT COUNT(*) FROM storage_racks sr JOIN storage_sections ss ON ss.id = sr.section_id WHERE ss.warehouse_id = w.id) AS rack_count,
+               (SELECT COUNT(*) FROM docks WHERE warehouse_id = w.id) AS dock_count,
+               (SELECT COALESCE(SUM(sr.capacity), 0) FROM storage_racks sr JOIN storage_sections ss ON ss.id = sr.section_id WHERE ss.warehouse_id = w.id) AS total_capacity,
+               (SELECT COALESCE(SUM(i.quantity), 0) FROM inventory i JOIN storage_racks sr ON sr.id = i.rack_id JOIN storage_sections ss ON ss.id = sr.section_id WHERE ss.warehouse_id = w.id) AS total_occupied
+        FROM warehouses w
+        ORDER BY w.id ASC
+      `);
+    },
+    getWarehouse(id) {
+      const wh = db.get('SELECT * FROM warehouses WHERE id = ?', [id]);
+      if (!wh) throw notFound('Warehouse');
+      return wh;
+    },
+    createWarehouse(d, user) {
+      return db.transaction(() => {
+        const code = d.code || `WH-${String(db.get('SELECT COUNT(*) c FROM warehouses').c + 1).padStart(2, '0')}`;
+        const { lastId } = db.run(
+          'INSERT INTO warehouses(code, name, address, city) VALUES(?,?,?,?)',
+          [code, d.name, d.address || null, d.city || null]
+        );
+        const secA = db.run('INSERT INTO storage_sections(warehouse_id, code, name, zone) VALUES(?,?,?,?)', [lastId, 'A', 'General Storage', 'indoor']).lastId;
+        const secB = db.run('INSERT INTO storage_sections(warehouse_id, code, name, zone) VALUES(?,?,?,?)', [lastId, 'B', 'Bulk High-Bay', 'indoor']).lastId;
+        const secC = db.run('INSERT INTO storage_sections(warehouse_id, code, name, zone) VALUES(?,?,?,?)', [lastId, 'C', 'Receiving Yard', 'outdoor']).lastId;
+        for (let r = 1; r <= 3; r++) {
+          for (let c = 1; c <= 4; c++) {
+            db.run('INSERT INTO storage_racks(section_id, code, row_no, col_no, capacity, max_pallets) VALUES(?,?,?,?,?,?)', [secA, `W${lastId}-A-${r}-${c}`, r, c, 600, 6]);
+            db.run('INSERT INTO storage_racks(section_id, code, row_no, col_no, capacity, max_pallets) VALUES(?,?,?,?,?,?)', [secB, `W${lastId}-B-${r}-${c}`, r, c, 600, 6]);
+          }
+        }
+        for (let r = 1; r <= 2; r++) {
+          for (let c = 1; c <= 4; c++) {
+            db.run('INSERT INTO storage_racks(section_id, code, row_no, col_no, capacity, max_pallets) VALUES(?,?,?,?,?,?)', [secC, `W${lastId}-C-${r}-${c}`, r, c, 600, 6]);
+          }
+        }
+        [[1, 'inbound'], [2, 'inbound'], [3, 'outbound'], [4, 'outbound']].forEach(([n, dir]) => {
+          db.run('INSERT INTO docks(warehouse_id, number, direction) VALUES(?,?,?)', [lastId, n, dir]);
+        });
+        ctx.activity.log(user, 'warehouse.created', 'warehouse', lastId, `Warehouse ${d.name} (${code}) created in ${d.city || 'local'}`);
+        ctx.notifications.notify({
+          level: 'success',
+          title: `New Warehouse Added: ${d.name}`,
+          message: `Registered with code ${code}. 3 sections and 4 loading bays initialized.`,
+          entityType: 'warehouse',
+          entityId: lastId
+        });
+        ctx.changed('warehouse');
+        return db.get('SELECT * FROM warehouses WHERE id = ?', [lastId]);
+      });
+    },
+    updateWarehouse(id, d, user) {
+      const wh = svc.getWarehouse(id);
+      db.run('UPDATE warehouses SET name = ?, address = ?, city = ? WHERE id = ?', [d.name ?? wh.name, d.address ?? wh.address, d.city ?? wh.city, id]);
+      ctx.activity.log(user, 'warehouse.updated', 'warehouse', id, `Warehouse ${wh.code} updated`);
+      ctx.changed('warehouse');
+      return svc.getWarehouse(id);
+    },
+    structure(warehouseId) {
+      const wh = warehouseId ? db.get('SELECT * FROM warehouses WHERE id = ?', [warehouseId]) : db.get('SELECT * FROM warehouses ORDER BY id LIMIT 1');
+      if (!wh) throw notFound('Warehouse');
       const racks = db.all(
         `SELECT r.*, COALESCE(u.qty,0) AS used, COALESCE(u.res,0) AS reserved, COALESCE(u.pallets,0) AS pallets
          FROM storage_racks r LEFT JOIN (SELECT rack_id, SUM(quantity) qty, SUM(reserved) res, COUNT(*) pallets FROM inventory WHERE quantity > 0 GROUP BY rack_id) u ON u.rack_id = r.id
          ORDER BY r.section_id, r.row_no, r.col_no`);
-      const sections = db.all('SELECT * FROM storage_sections ORDER BY id').map((s) => {
+      const secQuery = warehouseId ? 'SELECT * FROM storage_sections WHERE warehouse_id = ? ORDER BY id' : 'SELECT * FROM storage_sections ORDER BY id';
+      const secArgs = warehouseId ? [wh.id] : [];
+      const sections = db.all(secQuery, secArgs).map((s) => {
         const rs = racks.filter((r) => r.section_id === s.id).map((r) => ({
           id: r.id, code: r.code, sectionId: r.section_id, row: r.row_no, col: r.col_no, capacity: r.capacity, maxPallets: r.max_pallets, occupied: r.used, reserved: r.reserved, pallets: r.pallets,
           available: r.capacity - r.used, utilization: r.capacity ? r.used / r.capacity : 0, status: rackStatus(r.used, r.capacity),
@@ -28,7 +91,9 @@ export function createService(ctx) {
         const capacity = rs.reduce((a, r) => a + r.capacity, 0); const occupied = rs.reduce((a, r) => a + r.occupied, 0);
         return { id: s.id, code: s.code, name: s.name, zone: s.zone, capacity, occupied, available: capacity - occupied, utilization: capacity ? occupied / capacity : 0, status: rackStatus(occupied, capacity), racks: rs };
       });
-      const docks = db.all('SELECT * FROM docks ORDER BY number').map((d) => ({ id: d.id, number: d.number, direction: d.direction, status: d.status }));
+      const dockQuery = warehouseId ? 'SELECT * FROM docks WHERE warehouse_id = ? ORDER BY number' : 'SELECT * FROM docks ORDER BY number';
+      const dockArgs = warehouseId ? [wh.id] : [];
+      const docks = db.all(dockQuery, dockArgs).map((d) => ({ id: d.id, number: d.number, direction: d.direction, status: d.status }));
       const capacity = sections.reduce((a, s) => a + s.capacity, 0); const occupied = sections.reduce((a, s) => a + s.occupied, 0);
       return { warehouse: wh && { id: wh.id, code: wh.code, name: wh.name, address: wh.address, city: wh.city }, capacity, occupied, available: capacity - occupied, utilization: capacity ? occupied / capacity : 0, sections, docks, limits: LAYOUT_LIMITS };
     },
@@ -129,7 +194,15 @@ export function createService(ctx) {
 
 export function registerRoutes(router, ctx) {
   const s = ctx.svc.warehouse;
-  router.get('/api/warehouse', { perm: 'warehouse:read' }, () => s.structure());
+  router.get('/api/warehouses', { perm: 'warehouse:read' }, () => ({ items: s.listWarehouses() }));
+  router.get('/api/warehouses/:id', { perm: 'warehouse:read' }, (r) => s.getWarehouse(Number(r.params.id)));
+  router.post('/api/warehouses', { perm: 'warehouse:write' }, (r) => {
+    r.setStatus(201);
+    return s.createWarehouse(validate(r.body || {}, { name: { type: 'string', required: true, minLength: 2, maxLength: 100 }, code: { type: 'string', nullable: true }, address: { type: 'string', nullable: true }, city: { type: 'string', nullable: true } }), r.user);
+  });
+  router.patch('/api/warehouses/:id', { perm: 'warehouse:write' }, (r) => s.updateWarehouse(Number(r.params.id), validate(r.body || {}, { name: { type: 'string', minLength: 2, maxLength: 100 }, address: { type: 'string', nullable: true }, city: { type: 'string', nullable: true } }, { partial: true }), r.user));
+
+  router.get('/api/warehouse', { perm: 'warehouse:read' }, (r) => s.structure(r.query?.warehouseId ? Number(r.query.warehouseId) : undefined));
   router.get('/api/racks/:id', { perm: 'warehouse:read' }, (r) => s.rack(Number(r.params.id)));
   router.post('/api/sections', { perm: 'warehouse:write' }, (r) => { r.setStatus(201); return s.createSection(validate(r.body, { code: { type: 'string', required: true, minLength: 1, maxLength: 4, pattern: /^[A-Za-z0-9]+$/ }, name: { type: 'string', required: true, minLength: 2, maxLength: 60 }, zone: { type: 'enum', values: ZONES, required: true } }), r.user); });
   router.patch('/api/sections/:id', { perm: 'warehouse:write' }, (r) => s.updateSection(Number(r.params.id), validate(r.body, { name: { type: 'string', required: true, minLength: 2, maxLength: 60 } }), r.user));

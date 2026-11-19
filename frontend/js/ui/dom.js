@@ -18,6 +18,8 @@ const ICONS = {
   activity: 'M22 12h-4l-3 9L9 3l-3 9H2', percent: 'M19 5L5 19M6.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM17.5 20a2.5 2.5 0 100-5 2.5 2.5 0 000 5z', lock: 'M5 11h14v10H5zM8 11V7a4 4 0 018 0v4',
   building: 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01', sun: 'M12 17a5 5 0 100-10 5 5 0 000 10zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42',
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z',
+  cart: 'M9 20a2 2 0 100-4 2 2 0 000 4zm7 0a2 2 0 100-4 2 2 0 000 4zm-7-3h7a2 2 0 002-1.6l1.4-7.4H5.2M3 3h2l2 10',
+  'rotate-ccw': 'M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8M3 3v5h5',
 };
 export function icon(name, cls = '') {
   const s = document.createElementNS(SVG_NS, 'svg');
@@ -53,9 +55,19 @@ export const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChil
 export const mount = (el, ...children) => append(clear(el), children);
 
 // ---------- formatting ----------
+export const currencyState = { code: 'USD', symbol: '$', rate: 1.0 };
+
 export const fmt = {
   n: (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString()),
-  money: (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })),
+  money: (v) => {
+    if (v === null || v === undefined) return '–';
+    const converted = Number(v) * (currencyState.rate || 1.0);
+    try {
+      return converted.toLocaleString(undefined, { style: 'currency', currency: currencyState.code || 'USD', maximumFractionDigits: 2 });
+    } catch {
+      return `${currencyState.symbol || '$'}${converted.toFixed(2)}`;
+    }
+  },
   pct: (v, d = 0) => (v === null || v === undefined ? '–' : `${(v * 100).toFixed(d)}%`),
   label: (s) => String(s ?? '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
   dt: (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–'),

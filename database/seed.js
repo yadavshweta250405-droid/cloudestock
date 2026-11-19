@@ -10,6 +10,8 @@ export const DEMO_USERS = [
   { email: 'manager@waretrack.local', name: 'Priya Nair', role: 'warehouse_manager', password: 'Manager@123', employee: 'EMP-002' },
   { email: 'inventory@waretrack.local', name: 'Elena Petrova', role: 'inventory_manager', password: 'Inventory@123', employee: 'EMP-011' },
   { email: 'employee@waretrack.local', name: 'Aisha Khan', role: 'employee', password: 'Employee@123', employee: 'EMP-013' },
+  { email: 'admin@riversidehub.local', name: 'David Park', role: 'admin', password: 'Admin@123', employee: 'RIV-001' },
+  { email: 'manager@riversidehub.local', name: 'Fatima Malik', role: 'warehouse_manager', password: 'Manager@123', employee: 'RIV-002' },
 ];
 
 function rngFactory(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -20,8 +22,15 @@ const EMPLOYEES = [
   ['EMP-007', 'Omar Haddad', 'Picking', 'Packer'], ['EMP-008', 'Chloe Dubois', 'Picking', 'Picker'], ['EMP-009', 'Ben Carter', 'Shipping', 'Loader'],
   ['EMP-010', 'Ravi Patel', 'Shipping', 'Dispatch Coordinator'], ['EMP-011', 'Elena Petrova', 'Inventory', 'Inventory Controller'], ['EMP-012', 'Tom Walker', 'Maintenance', 'Technician'],
   ['EMP-013', 'Aisha Khan', 'Shipping', 'Loader'],
+  ['RIV-001', 'David Park', 'Management', 'Site Director (Riverside)'],
+  ['RIV-002', 'Fatima Malik', 'Receiving', 'Receiving Lead (Riverside)'],
+  ['RIV-003', 'Carlos Reyes', 'Inventory', 'Cold Chain Analyst'],
+  ['RIV-004', 'Yuki Tanaka', 'Shipping', 'Cold Fleet Loader'],
 ];
-const CATEGORIES = [['Electronics', '#3b82f6', 'B'], ['Apparel', '#ec4899', 'A'], ['Home & Kitchen', '#f59e0b', 'A'], ['Sports', '#10b981', 'C'], ['Tools', '#ef4444', 'C']];
+const CATEGORIES = [
+  ['Electronics', '#3b82f6', 'B'], ['Apparel', '#ec4899', 'A'], ['Home & Kitchen', '#f59e0b', 'A'], ['Sports', '#10b981', 'C'], ['Tools', '#ef4444', 'C'],
+  ['Pharma & Medical', '#7c3aed', 'B'], ['Industrial Parts', '#dc2626', 'B'], ['Cold Storage', '#0ea5e9', 'A'], ['Chemicals', '#16a34a', 'B'], ['Packaging', '#d97706', 'A'],
+];
 // sku, name, category, price, reorder level, forced total (null = random)
 const PRODUCTS = [
   ['ELEC-EARB', 'Wireless Earbuds Pro', 'Electronics', 129, 40], ['ELEC-CAM4', '4K Action Camera', 'Electronics', 249, 25], ['ELEC-SW02', 'Smart Watch S2', 'Electronics', 199, 30, 18],
@@ -32,6 +41,20 @@ const PRODUCTS = [
   ['HOME-LAMP', 'LED Desk Lamp', 'Home & Kitchen', 35, 40], ['HOME-PILL', 'Memory Foam Pillow', 'Home & Kitchen', 42, 40],
   ['SPO-YOGA', 'Yoga Mat Premium', 'Sports', 29, 50], ['SPO-DUMB', 'Dumbbell Set 20kg', 'Sports', 89, 30], ['SPO-TENT', 'Camping Tent 4P', 'Sports', 189, 20], ['SPO-HELM', 'Mountain Bike Helmet', 'Sports', 69, 30],
   ['TOOL-DRIL', 'Cordless Drill 18V', 'Tools', 119, 30], ['TOOL-KIT', 'Tool Kit 120pc', 'Tools', 79, 30], ['TOOL-GLV', 'Work Gloves (pair)', 'Tools', 9, 40, 14], ['TOOL-ROLL', 'Paint Roller Kit', 'Tools', 18, 40],
+  // Riverside Hub items (Cold storage, Industrial, Pharma)
+  ['PHA-MASK', 'N95 Respirator Masks (box/50)', 'Pharma & Medical', 45, 80, 150],
+  ['PHA-GLVL', 'Nitrile Gloves L (box/100)', 'Pharma & Medical', 18, 100, 180],
+  ['PHA-SYRG', 'Sterile Syringe 5ml (pack/100)', 'Pharma & Medical', 32, 50, 100],
+  ['IND-BOLT', 'Hex Bolt M12x50 (box/100)', 'Industrial Parts', 24, 120, 200],
+  ['IND-BRNG', 'Ball Bearing 6204 (unit)', 'Industrial Parts', 8, 200, 150],
+  ['IND-PUMP', 'Centrifugal Pump 1HP', 'Industrial Parts', 420, 10, 25],
+  ['CLD-FROZ', 'Frozen Peas 1kg (case/12)', 'Cold Storage', 28, 60, 120],
+  ['CLD-BEEF', 'Frozen Beef Patties 500g', 'Cold Storage', 55, 40, 80],
+  ['CLD-FISH', 'Frozen Atlantic Salmon 1kg', 'Cold Storage', 18, 50, 90],
+  ['CHM-ACET', 'Acetone 5L (can)', 'Chemicals', 35, 30, 75],
+  ['CHM-ALCO', 'Isopropyl Alcohol 1L', 'Chemicals', 12, 80, 120],
+  ['PKG-BOXM', 'Cardboard Box Medium (pack/15)', 'Packaging', 22, 100, 150],
+  ['PKG-WRAP', 'Stretch Wrap Roll 500m', 'Packaging', 14, 80, 100],
 ];
 const COLORS = ['#2563eb', '#0ea5a4', '#1d4ed8', '#0891b2', '#3b82f6', '#14b8a6'];
 const CUSTOMERS = [['Northwind Traders', 'Philadelphia'], ['Bluebird Cafe', 'Boston'], ['Harbor Outfitters', 'Baltimore'], ['Maple & Main', 'Hartford'], ['Summit Sports', 'Pittsburgh'], ['Greenleaf Market', 'Newark'], ['Urban Threads', 'New York'], ['Cobalt Electronics', 'Albany'], ['Riverside Gifts', 'Wilmington'], ['Oak Street Hardware', 'Providence']];
@@ -48,7 +71,8 @@ export async function seedDatabase(ctx) {
 
   db.transaction(() => {
     // ----- structure -----
-    const wh = db.run('INSERT INTO warehouses(code,name,address,city) VALUES(?,?,?,?)', ['WH-01', 'Riverside Hub', '1200 Riverside Industrial Pkwy', 'Philadelphia']).lastId;
+    const wh = db.run('INSERT INTO warehouses(code,name,address,city) VALUES(?,?,?,?)', ['WH-01', 'WareTrack Central Hub', '1200 Logistics Pkwy', 'Philadelphia']).lastId;
+    db.run('INSERT INTO warehouses(code,name,address,city) VALUES(?,?,?,?)', ['WH-02', 'Riverside Hub', '450 Cold Harbour Industrial Estate', 'Chicago']);
     const sec = {};
     for (const [code, name, zone] of [['A', 'General Merchandise', 'indoor'], ['B', 'Electronics Hall', 'indoor'], ['C', 'Bulk Yard', 'outdoor']]) sec[code] = db.run('INSERT INTO storage_sections(warehouse_id,code,name,zone) VALUES(?,?,?,?)', [wh, code, name, zone]).lastId;
     const racks = {};
@@ -148,6 +172,9 @@ export async function seedDatabase(ctx) {
     const drivers = ['Daniel Foster', 'Maria Gomez', 'Kenji Sato', 'Fatima Ali', 'Lucas Meyer', 'Nina Kowalski', 'Jamal Brooks'].map((n, i) => db.run('INSERT INTO drivers(name,phone,license_no,created_at) VALUES(?,?,?,?)', [n, `+1 555 01${10 + i}`, `DL-${4400 + i * 37}`, iso(now - 300 * D)]).lastId);
     [['TRK-101', 'PA-4821', 'truck', 400], ['TRK-102', 'PA-7733', 'truck', 400], ['TRK-103', 'PA-1180', 'truck', 600], ['TRK-104', 'PA-9052', 'truck', 600], ['VAN-201', 'PA-3317', 'van', 150], ['VAN-202', 'PA-6044', 'van', 150]]
       .forEach(([code, plate, type, cap], i) => db.run('INSERT INTO vehicles(code,plate,type,capacity_units,status,color,driver_id,parking_slot,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [code, plate, type, cap, 'available', COLORS[i], drivers[i], i, iso(now - 300 * D)]));
+    const moreDrivers = ['Tariq Mansour', 'Svetlana Ivanova'].map((n, i) => db.run('INSERT INTO drivers(name,phone,license_no,created_at) VALUES(?,?,?,?)', [n, `+1 312 02${40 + i}`, `IL-${5520 + i * 40}`, iso(now - 300 * D)]).lastId);
+    [['REF-401', 'IL-2217', 'van', 200, '#0284c7'], ['HTR-301', 'IL-9821', 'truck', 600, '#1e3a5f']]
+      .forEach(([code, plate, type, cap, color], i) => db.run('INSERT INTO vehicles(code,plate,type,capacity_units,status,color,driver_id,parking_slot,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [code, plate, type, cap, 'available', color, moreDrivers[i], 6 + i, iso(now - 300 * D)]));
     db.run(`UPDATE vehicles SET status = 'maintenance' WHERE code = 'TRK-104'`);
     ctx.activity.log(admin, 'system.seed', 'system', null, 'Demo data created');
   });
@@ -211,7 +238,21 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const { createContainer } = await import('../backend/src/container.js');
   const config = loadConfig();
   if (process.argv.includes('--reset')) {
-    for (const f of [config.db.file, config.db.file + '-wal', config.db.file + '-shm']) if (fs.existsSync(f)) fs.unlinkSync(f);
+    let unlinked = false;
+    try {
+      for (const f of [config.db.file, config.db.file + '-wal', config.db.file + '-shm']) if (fs.existsSync(f)) fs.unlinkSync(f);
+      unlinked = true;
+    } catch {}
+    if (!unlinked) {
+      const c = createContainer(config);
+      const tables = c.db.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").map(t => t.name);
+      c.db.run('PRAGMA foreign_keys = OFF');
+      for (const t of tables) {
+        if (t !== 'schema_migrations') c.db.run(`DELETE FROM ${t}`);
+      }
+      c.db.run('PRAGMA foreign_keys = ON');
+      c.close();
+    }
     fs.rmSync(config.storage.dir, { recursive: true, force: true });
     console.log('Database wiped.');
   }
