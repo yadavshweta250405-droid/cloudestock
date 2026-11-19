@@ -1,8 +1,8 @@
-import { h, icon, mount, clear, fmt, toast, toastError, formModal, debounce, badge, currencyState } from './ui/dom.js';
+import { h, icon, mount, clear, fmt, toast, toastError, formModal, debounce, badge } from './ui/dom.js';
 import { api, session, connectEvents, setUnauthorizedHandler } from './api.js';
 import { can, ROLE_LABELS } from '/shared/constants.js';
 
-export const app = { user: null, scene: null, world: null, route: null, viewApi: null, sync: null, connected: true, currencies: [] };
+export const app = { user: null, scene: null, world: null, route: null, viewApi: null, sync: null, connected: true };
 
 const NAV = [
   { id: 'world', label: '3D World', icon: 'box', perm: 'scene:read' },
@@ -11,8 +11,6 @@ const NAV = [
   { id: 'orders', label: 'Orders', icon: 'clipboard', perm: 'orders:read' },
   { id: 'deliveries', label: 'Fleet', icon: 'truck', perm: 'deliveries:read' },
   { id: 'receiving', label: 'Inbound', icon: 'inbox', perm: 'receiving:read' },
-  { id: 'purchases', label: 'Purchases', icon: 'cart', perm: 'purchase_orders:read' },
-  { id: 'returns', label: 'Returns', icon: 'rotate-ccw', perm: 'returns:read' },
   { id: 'people', label: 'Team', icon: 'users', perm: 'employees:read' },
   { id: 'warehouse', label: 'Layout', icon: 'building', perm: 'warehouse:read' },
   { id: 'activity', label: 'Activity', icon: 'activity', perm: 'dashboard:read' },
@@ -22,7 +20,6 @@ const loaders = {
   world: () => import('./views/world.js'), dashboard: () => import('./views/dashboard.js'), inventory: () => import('./views/inventory.js'), orders: () => import('./views/orders.js'),
   deliveries: () => import('./views/deliveries.js'), receiving: () => import('./views/receiving.js'), people: () => import('./views/people.js'), warehouse: () => import('./views/warehouse.js'),
   activity: () => import('./views/activity.js'), users: () => import('./views/users.js'),
-  purchases: () => import('./views/purchases.js'), returns: () => import('./views/returns.js'),
 };
 
 let root; let stopEvents = () => {}; let els = {};
@@ -174,46 +171,6 @@ function showShell() {
     onChange: (e) => { simSpeed = Number(e.target.value); if (simActive) startSimLoop(); }
   }, [1, 2, 5].map((s) => h('option', { value: s, selected: simSpeed === s }, `${s}x`)));
 
-  const currencySelect = h('select', {
-    style: { fontSize: '12px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' },
-    onChange: (e) => {
-      const code = e.target.value;
-      const c = app.currencies?.find((x) => x.code === code);
-      if (c) {
-        currencyState.code = c.code;
-        currencyState.symbol = c.symbol;
-        currencyState.rate = c.rate_to_usd || 1.0;
-        toast('Currency updated', `Displaying prices in ${c.code} (${c.symbol})`, 'info');
-        if (app.route !== 'world') app.viewApi?.refresh?.();
-      }
-    }
-  }, [
-    { code: 'USD', symbol: '$' },
-    { code: 'EUR', symbol: '€' },
-    { code: 'GBP', symbol: '£' },
-    { code: 'INR', symbol: '₹' },
-    { code: 'CAD', symbol: 'CA$' },
-    { code: 'AUD', symbol: 'A$' },
-    { code: 'JPY', symbol: '¥' }
-  ].map((c) => h('option', { value: c.code, selected: c.code === currencyState.code }, `${c.code} (${c.symbol})`)));
-
-  api.get('/currencies').then((res) => {
-    if (res?.items?.length) {
-      app.currencies = res.items;
-      clear(currencySelect);
-      res.items.forEach((c) => {
-        const opt = h('option', { value: c.code, selected: c.code === currencyState.code }, `${c.code} (${c.symbol})`);
-        currencySelect.appendChild(opt);
-      });
-      const active = res.items.find((x) => x.code === currencyState.code) || res.items[0];
-      if (active) {
-        currencyState.code = active.code;
-        currencyState.symbol = active.symbol;
-        currencyState.rate = active.rate_to_usd || 1.0;
-      }
-    }
-  }).catch(() => {});
-
   mount(root, h('div', { class: 'shell' },
     h('header', { class: 'topbar' },
       h('div', { class: 'brand', style: { cursor: 'pointer' }, onClick: () => { location.hash = '#/world'; app.world?.select?.({ type: 'office', id: 1 }, { focus: true }); } },
@@ -225,7 +182,7 @@ function showShell() {
         h('button', { class: 'btn sm', title: 'Focus Management Office', onClick: () => { location.hash = '#/world'; app.world?.select?.({ type: 'office', id: 1 }, { focus: true }); } }, 'Management Office')),
       h('div', { class: 'spacer' }),
       h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', marginRight: '8px' } },
-        simBtn, simActive && speedSelect, currencySelect, personaSelect),
+        simBtn, simActive && speedSelect, personaSelect),
       els.live, els.bellWrap, els.userWrap),
     els.rail, h('main', { class: 'main' }, els.worldHost, els.sheet)));
   renderUser(); renderBell();
@@ -317,7 +274,7 @@ async function runSearch() {
 export async function openEntity(type, id) {
   const world = { rack: 'rack', vehicle: 'vehicle', employee: 'worker', dock: 'dock' }[type];
   if (world) { location.hash = '#/world'; await ready; setTimeout(() => app.viewApi?.focusEntity?.({ type: world, id }), 60); return; }
-  const view = { product: 'inventory', order: 'orders', delivery: 'deliveries', shipment: 'receiving', purchase_order: 'purchases', return: 'returns' }[type];
+  const view = { product: 'inventory', order: 'orders', delivery: 'deliveries', shipment: 'receiving' }[type];
   if (view) { location.hash = `#/${view}`; await ready; setTimeout(() => app.viewApi?.open?.(id), 80); }
 }
 

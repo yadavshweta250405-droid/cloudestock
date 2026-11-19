@@ -29,12 +29,6 @@ export const DOCK_DIRECTIONS = ['inbound', 'outbound', 'both'];
 export const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 export const ZONES = ['indoor', 'outdoor'];
 
-export const PURCHASE_ORDER_STATUSES = ['pending', 'approved', 'ordered', 'partially_received', 'completed', 'cancelled'];
-export const RETURN_STATUSES = ['requested', 'received', 'inspected', 'approved', 'rejected', 'restocked'];
-export const RETURN_REASONS = ['damaged', 'wrong_item', 'defective', 'expired', 'customer_cancelled', 'other'];
-export const RETURN_CONDITIONS = ['unopened', 'opened_good', 'damaged', 'defective'];
-export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY'];
-
 const ALL = Object.values(ROLES);
 const MGMT = ['admin', 'warehouse_manager'];
 const STOCK = ['admin', 'warehouse_manager', 'inventory_manager'];
@@ -43,8 +37,6 @@ export const PERMISSIONS = {
   'products:read': ALL, 'products:write': STOCK,
   'inventory:read': ALL, 'inventory:write': STOCK,
   'orders:read': ALL, 'orders:write': STOCK,
-  'purchase_orders:read': ALL, 'purchase_orders:write': STOCK,
-  'returns:read': ALL, 'returns:write': STOCK,
   'deliveries:read': ALL, 'deliveries:write': MGMT,
   'receiving:read': ALL, 'receiving:write': STOCK,
   'employees:read': ALL, 'employees:write': MGMT,

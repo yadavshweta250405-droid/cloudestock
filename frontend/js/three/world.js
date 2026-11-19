@@ -406,66 +406,6 @@ export function createWorld(container, handlers = {}) {
   const pickWaypoints = [];
   for (let k = 0; k < 14; k++) { const m = new THREE.Mesh(wpGeo, wpMat); m.visible = false; pickPathGroup.add(m); pickWaypoints.push(m); }
 
-  // Multi-Stop Order Pick-Path Route
-  const orderPathGroup = new THREE.Group(); orderPathGroup.renderOrder = 7; orderPathGroup.visible = false; scene.add(orderPathGroup);
-  const orderLineMat = new THREE.LineDashedMaterial({ color: '#059669', dashSize: 1.0, gapSize: 0.5, transparent: true, opacity: 0.95 });
-  const orderLineGeo = new THREE.BufferGeometry();
-  const orderPathLine = new THREE.Line(orderLineGeo, orderLineMat); orderPathGroup.add(orderPathLine);
-  let orderSprites = [];
-
-  function showOrderPickPath(pickData) {
-    if (!pickData || !pickData.stops || !pickData.stops.length) {
-      orderPathGroup.visible = false;
-      return;
-    }
-    orderSprites.forEach((sp) => { orderPathGroup.remove(sp); sp.material?.dispose(); });
-    orderSprites = [];
-
-    const pts = [{ x: 0, y: FLOOR_IN + 0.1, z: L.WALK_Z }];
-    let lastPt = pts[0];
-
-    for (const stop of pickData.stops) {
-      const p = placeOf.get(stop.rackId);
-      if (!p) continue;
-      const approachX = p.approach ? p.approach.x : p.x;
-      const approachZ = p.approach ? p.approach.z : p.z + 1.8;
-      const floorY = (p.floor ?? FLOOR_IN) + 0.1;
-
-      const fromNode = walk.nearest(lastPt.x, lastPt.z);
-      const toNode = walk.nearest(approachX, approachZ);
-      const pathIds = walk.path(fromNode, toNode) || [toNode];
-      walk.points(pathIds).forEach((wp) => pts.push({ x: wp.x, y: floorY, z: wp.z }));
-      pts.push({ x: approachX, y: floorY, z: approachZ });
-      lastPt = { x: approachX, y: floorY, z: approachZ };
-
-      const label = `Stop ${stop.stopNumber}: ${stop.rackCode} (x${stop.quantity})`;
-      const sp = M.textSprite(label, { bg: '#059669', fg: '#ffffff', scale: 0.032, height: 56, padX: 18, depthTest: false });
-      sp.position.set(p.x, (p.floor ?? FLOOR_IN) + 4.8, p.z);
-      orderPathGroup.add(sp);
-      orderSprites.push(sp);
-    }
-
-    const returnFrom = walk.nearest(lastPt.x, lastPt.z);
-    const returnTo = walk.nearest(0, L.WALK_Z);
-    const returnIds = walk.path(returnFrom, returnTo) || [returnTo];
-    walk.points(returnIds).forEach((wp) => pts.push({ x: wp.x, y: FLOOR_IN + 0.1, z: wp.z }));
-    pts.push({ x: 0, y: FLOOR_IN + 0.1, z: L.WALK_Z });
-
-    const vectors = pts.map((pt) => new THREE.Vector3(pt.x, pt.y, pt.z));
-    orderLineGeo.setFromPoints(vectors);
-    orderPathLine.computeLineDistances();
-    orderPathGroup.visible = true;
-
-    setInterior(true);
-    startTween(new THREE.Vector3(12, 0, 4), 95);
-  }
-
-  function clearOrderPickPath() {
-    orderPathGroup.visible = false;
-    orderSprites.forEach((sp) => { orderPathGroup.remove(sp); sp.material?.dispose(); });
-    orderSprites = [];
-  }
-
   function boundsOf(ref) {
     if (!ref) return null; const b = new THREE.Box3();
     switch (ref.type) {
@@ -624,7 +564,6 @@ export function createWorld(container, handlers = {}) {
     }
     updateForklifts(dt);
     if (pickPathGroup.visible) pickLineMat.dashOffset -= dt * 2.8;
-    if (orderPathGroup.visible) orderLineMat.dashOffset -= dt * 3.2;
     for (const sp of warnSprites.values()) if (sp.visible) sp.position.y = sp.userData.baseY + Math.sin(time * 3) * 0.25;
     for (let i = fx.length - 1; i >= 0; i--) { const f = fx[i]; f.t += dt; const k = f.t / f.dur; f.m.scale.setScalar(1 + k * 1.8); f.m.material.opacity = Math.max(0, 0.9 * (1 - k)); if (k >= 1) { scene.remove(f.m); f.m.geometry.dispose(); f.m.material.dispose(); fx.splice(i, 1); } }
     // roof lift animation
@@ -662,10 +601,6 @@ export function createWorld(container, handlers = {}) {
     rotate(deg) { const off = camera.position.clone().sub(controls.target); const d = off.length(); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), (deg * Math.PI) / 180); startTween(controls.target.clone(), d, off.normalize()); },
     setPaused(p) { paused = p; if (p) stop(); else start(); },
     setQuality, boundsOf, start, stop,
-    showOrderPickPath, clearOrderPickPath,
-    focusWarehouse(warehouseId = 1) {
-      select({ type: 'warehouse', id: Number(warehouseId) }, { focus: true });
-    },
     dispose() { stop(); ro.disconnect(); controls.dispose(); renderer.dispose(); canvas.remove(); },
     debug: { scene, camera, vehicles, workers, palletMap: () => palletMap, stats: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries }) },
   };

@@ -55,19 +55,9 @@ export const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChil
 export const mount = (el, ...children) => append(clear(el), children);
 
 // ---------- formatting ----------
-export const currencyState = { code: 'USD', symbol: '$', rate: 1.0 };
-
 export const fmt = {
   n: (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString()),
-  money: (v) => {
-    if (v === null || v === undefined) return '–';
-    const converted = Number(v) * (currencyState.rate || 1.0);
-    try {
-      return converted.toLocaleString(undefined, { style: 'currency', currency: currencyState.code || 'USD', maximumFractionDigits: 2 });
-    } catch {
-      return `${currencyState.symbol || '$'}${converted.toFixed(2)}`;
-    }
-  },
+  money: (v) => (v === null || v === undefined ? '–' : `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
   pct: (v, d = 0) => (v === null || v === undefined ? '–' : `${(v * 100).toFixed(d)}%`),
   label: (s) => String(s ?? '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
   dt: (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–'),
