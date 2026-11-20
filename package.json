@@ -20,5 +20,8 @@
     "predev": "node scripts/check-node.mjs",
     "docs:generate": "node --disable-warning=ExperimentalWarning scripts/gen-docs.mjs",
     "test:e2e": "node tests/e2e/browser-smoke.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1173.0"
   }
 }

@@ -19,7 +19,25 @@ export class S3Storage {
     if (this.client) return this.client;
     try {
       const { S3Client } = await import('@aws-sdk/client-s3');
-      this.client = new S3Client({ region: this.region });
+      const clientConfig = { region: this.region };
+
+      // Optional explicit credentials from env (otherwise falls back to default AWS credential chain/IAM role)
+      if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+        clientConfig.credentials = {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+          ...(process.env.AWS_SESSION_TOKEN ? { sessionToken: process.env.AWS_SESSION_TOKEN } : {}),
+        };
+      }
+
+      // Optional custom endpoint (e.g. LocalStack, MinIO, or custom S3 endpoint)
+      const endpoint = process.env.AWS_ENDPOINT_URL || process.env.S3_ENDPOINT;
+      if (endpoint) {
+        clientConfig.endpoint = endpoint;
+        clientConfig.forcePathStyle = true;
+      }
+
+      this.client = new S3Client(clientConfig);
       return this.client;
     } catch {
       throw new Error(
