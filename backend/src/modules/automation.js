@@ -19,9 +19,9 @@
 
 import { nowIso } from '../core/util.js';
 
-const TICK_MS    = parseInt(process.env.AUTOMATION_TICK_MS    || '4000',  10);
-const ADVANCE_MS = parseInt(process.env.AUTOMATION_ADVANCE_MS || '12000', 10);
-const RESTOCK_MS = parseInt(process.env.AUTOMATION_RESTOCK_MS || '30000', 10);
+const TICK_MS    = parseInt(process.env.AUTOMATION_TICK_MS    || '15000', 10);
+const ADVANCE_MS = parseInt(process.env.AUTOMATION_ADVANCE_MS || '25000', 10);
+const RESTOCK_MS = parseInt(process.env.AUTOMATION_RESTOCK_MS || '45000', 10);
 
 // Superstore segment -> warehouse order priority mapping
 const SEG_PRIORITY = { Consumer: 'normal', Corporate: 'high', 'Home Office': 'normal' };
@@ -243,9 +243,6 @@ export function startJobs(ctx) {
             if (veh) db.run(`UPDATE vehicles SET status = 'available' WHERE id = ?`, [veh.vehicle_id]);
           }
           logActivity('deliver', 'orders', o.id, `Order ${o.number} delivered`);
-
-          // Push a notification
-          notifications.notify({ level: 'success', title: 'Order Delivered', message: `Order ${o.number} has been delivered successfully.`, entityType: 'orders', entityId: o.id, dedupeMinutes: 1 });
         }
       }
 

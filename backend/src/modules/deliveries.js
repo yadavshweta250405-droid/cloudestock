@@ -248,6 +248,16 @@ export function createService(ctx) {
           ctx.jobs.enqueue('vehicle.return', { vehicleId: d.vehicle_id }, { delayMs: ctx.config.jobs.vehicleReturnDelayMs });
         }
       });
+      const deliveredOrder = db.get('SELECT * FROM orders WHERE id = ?', [orderId]);
+      if (deliveredOrder) {
+        ctx.notifications.notify({
+          level: 'success',
+          title: 'Order Delivered',
+          message: `Order ${deliveredOrder.number} has been delivered successfully.`,
+          entityType: 'orders',
+          entityId: orderId,
+        });
+      }
       ctx.changed('deliveries', 'vehicles', 'orders');
     },
     complete(id, user) {
