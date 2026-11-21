@@ -15,7 +15,11 @@ import { loadConfig } from '../backend/src/config.js';
 const { Client } = pg;
 const cfg = loadConfig();
 
-const rdsUrl = process.env.DATABASE_URL || 'postgres://postgres:Shweta152504@waretrack3d-db.cdegiemkurxk.ap-south-1.rds.amazonaws.com:5432/waretrack';
+const rdsUrl = cfg.db.url || process.env.DATABASE_URL;
+if (!rdsUrl) {
+  console.error('[error] DATABASE_URL is required in .env or environment');
+  process.exit(1);
+}
 
 console.log('=== WareTrack 3D -> Amazon RDS PostgreSQL Migration ===');
 console.log('Connecting to Local SQLite...');

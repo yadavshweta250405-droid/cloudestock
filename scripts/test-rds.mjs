@@ -1,23 +1,18 @@
 import pg from 'pg';
+import { loadConfig } from '../backend/src/config.js';
 const { Client } = pg;
 
-const host = 'waretrack3d-db.cdegiemkurxk.ap-south-1.rds.amazonaws.com';
-const user = 'postgres';
-const password = 'Shweta152504';
-const port = 5432;
+const config = loadConfig();
+const dbUrl = config.db.url || process.env.DATABASE_URL;
+if (!dbUrl) {
+  console.error('DATABASE_URL is not set in .env or environment');
+  process.exit(1);
+}
 
 console.log('--- Testing Amazon RDS PostgreSQL Connection ---');
-console.log('Host:', host);
-console.log('User:', user);
 
-// Try database 'waretrack' first, fallback to 'postgres'
-let dbName = 'waretrack';
 let client = new Client({
-  host,
-  port,
-  user,
-  password,
-  database: dbName,
+  connectionString: dbUrl,
   ssl: { rejectUnauthorized: false }
 });
 

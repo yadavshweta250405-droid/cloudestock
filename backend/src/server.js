@@ -172,7 +172,12 @@ export function createApp(config = loadConfig(), { log = defaultLogger } = {}) {
 }
 
 // ---- CLI entry ----
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isMain = process.argv[1] && (
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) ||
+  process.argv[1].includes('pm2') ||
+  process.env.pm_id !== undefined
+);
+if (isMain) {
   const config = loadConfig();
   const app = createApp(config);
   const { seedIfEmpty } = await import('../../database/seed.js');

@@ -1,7 +1,13 @@
 import pg from 'pg';
+import { loadConfig } from '../backend/src/config.js';
 const { Client } = pg;
 
-const rdsUrl = process.env.DATABASE_URL || 'postgres://postgres:Shweta152504@waretrack3d-db.cdegiemkurxk.ap-south-1.rds.amazonaws.com:5432/waretrack';
+const cfg = loadConfig();
+const rdsUrl = cfg.db.url || process.env.DATABASE_URL;
+if (!rdsUrl) {
+  console.error('[error] DATABASE_URL is required in .env or environment');
+  process.exit(1);
+}
 
 const client = new Client({
   connectionString: rdsUrl,

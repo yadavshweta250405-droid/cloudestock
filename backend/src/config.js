@@ -38,7 +38,11 @@ export function loadConfig(overrides = {}) {
     root: ROOT,
     corsOrigin: e.CORS_ORIGIN || '',
     autoSeed: bool('AUTO_SEED', true),
-    db: { provider: e.DB_PROVIDER || 'sqlite', file: path.resolve(ROOT, e.DB_FILE || 'database/data/waretrack.db') },
+    db: {
+      provider: e.DB_PROVIDER || 'sqlite',
+      file: path.resolve(ROOT, e.DB_FILE || 'database/data/waretrack.db'),
+      url: e.DATABASE_URL || '',
+    },
     storage: {
       provider: provider('STORAGE_PROVIDER'),
       dir: path.resolve(ROOT, e.STORAGE_DIR || 'database/data/files'),

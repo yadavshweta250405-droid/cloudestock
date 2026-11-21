@@ -1,8 +1,14 @@
 node_modules/
 .env
+.env.*
+!.env.example
 database/data/*
 !database/data/.gitkeep
 *.log
 .DS_Store
 frontend/vendor/
 tests/e2e/screenshots/
+*.pem
+*.key
+*.tar.gz
+
