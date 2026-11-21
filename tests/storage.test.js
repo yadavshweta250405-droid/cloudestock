@@ -18,9 +18,9 @@ test('storage provider: S3 implementation matches contract and constructs valid 
   const s3 = new S3Storage({ bucket: 'my-waretrack-bucket', region: 'ap-south-1' });
   assert.doesNotThrow(() => assertContract('storage', s3));
 
-  // Direct S3 URL
+  // App Proxy URL (works with private S3 buckets without 403 Forbidden)
   const url1 = s3.publicUrl('products/PRD-001.png');
-  assert.equal(url1, 'https://my-waretrack-bucket.s3.ap-south-1.amazonaws.com/products/PRD-001.png');
+  assert.equal(url1, '/uploads/products/PRD-001.png');
 
   // CloudFront CDN URL
   const s3Cf = new S3Storage({ bucket: 'my-waretrack-bucket', region: 'ap-south-1', cloudfrontUrl: 'https://d12345.cloudfront.net' });

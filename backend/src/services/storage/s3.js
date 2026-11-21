@@ -157,7 +157,8 @@ export class S3Storage {
     if (this.cloudfrontUrl) {
       return `${this.cloudfrontUrl}/${fKey}`;
     }
-    return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${fKey}`;
+    // Serve through secure authenticated app proxy (/uploads/*) so private S3 buckets display without 403 Forbidden
+    return `/uploads/${fKey}`;
   }
 }
 
