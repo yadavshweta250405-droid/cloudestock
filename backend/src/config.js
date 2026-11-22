@@ -60,6 +60,12 @@ export function loadConfig(overrides = {}) {
     },
     jobs: { provider: provider('JOBS_PROVIDER'), vehicleReturnDelayMs: num('VEHICLE_RETURN_DELAY_MS', 20000), lowStockScanMs: num('LOW_STOCK_SCAN_MS', 300000) },
     sync: { provider: provider('SYNC_PROVIDER'), intervalMs: num('SYNC_INTERVAL_MS', 300000), key: 'snapshots/latest.json' },
+    logging: {
+      cloudwatchEnabled: bool('CLOUDWATCH_LOGS_ENABLED', false),
+      logGroupName: e.CLOUDWATCH_LOG_GROUP || '/waretrack3d/backend',
+      logStreamName: e.CLOUDWATCH_LOG_STREAM || '',
+      region: e.AWS_REGION || 'ap-south-1',
+    },
   };
   return merge(cfg, overrides);
 }
