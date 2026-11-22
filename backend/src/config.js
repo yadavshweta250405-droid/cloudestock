@@ -53,7 +53,11 @@ export function loadConfig(overrides = {}) {
     },
     auth: { provider: provider('AUTH_PROVIDER'), sessionTtlHours: num('SESSION_TTL_HOURS', 12) },
     events: { provider: provider('EVENTS_PROVIDER') },
-    notifications: { provider: provider('NOTIFICATIONS_PROVIDER') },
+    notifications: {
+      provider: provider('NOTIFICATIONS_PROVIDER'),
+      topicArn: e.SNS_TOPIC_ARN || '',
+      region: e.AWS_REGION || 'ap-south-1',
+    },
     jobs: { provider: provider('JOBS_PROVIDER'), vehicleReturnDelayMs: num('VEHICLE_RETURN_DELAY_MS', 20000), lowStockScanMs: num('LOW_STOCK_SCAN_MS', 300000) },
     sync: { provider: provider('SYNC_PROVIDER'), intervalMs: num('SYNC_INTERVAL_MS', 300000), key: 'snapshots/latest.json' },
   };
